@@ -54,7 +54,12 @@ num_personas = st.sidebar.number_input(
 
 model_name = st.sidebar.selectbox(
     "Select Model:",
-    ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
+    [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
+        "allam-2-7b",
+    ],
 )
 
 csv_path = st.sidebar.text_input(
