@@ -197,6 +197,15 @@ if st.button("Start Simulation"):
 if "df_data" not in st.session_state and os.path.exists(csv_path):
     st.session_state["df_data"] = pd.read_csv(csv_path)
 
+
+# ADD button to download from streamlit
+st.download_button(
+    label="📥 Download CSV Results",
+    data=df_res.to_csv(index=False).encode("utf-8"),
+    file_name="accountability_results.csv",
+    mime="text/csv",
+)
+
 # ----------------------------------------------------
 # 3. Descriptive Statistics
 # ----------------------------------------------------
