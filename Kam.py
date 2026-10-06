@@ -77,7 +77,7 @@ with st.sidebar:
     )
 
     csv_path = st.text_input(
-        "Output CSV File Name:", value="accountability_results.csv"
+        "Output CSV File Name:", value="KAM_results.csv"
     )
 
 # Load existing CSV into session_state if available
