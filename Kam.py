@@ -10,7 +10,7 @@ import streamlit as st
 from groq import Groq
 
 # ----------------------------------------------------
-# 1. Page Configuration & Custom Styling
+# 1. Page Configuration & Styling
 # ----------------------------------------------------
 st.set_page_config(
     page_title="Audit Decision-Making & KAM Simulation",
@@ -19,32 +19,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CSS اختصاصی برای زیباتر کردن کارت‌ها، دکمه‌ها و جداول
 st.markdown(
     """
     <style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E3A8A;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #4B5563;
-        margin-bottom: 2rem;
-    }
-    .metric-card {
-        background-color: #F3F4F6;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        text-align: center;
-    }
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-    }
+    .main-header { font-size: 2.2rem; font-weight: 700; color: #1E3A8A; margin-bottom: 0.5rem; }
+    .sub-header { font-size: 1.1rem; color: #4B5563; margin-bottom: 2rem; }
     </style>
 """,
     unsafe_allow_html=True,
@@ -76,9 +55,6 @@ client = Groq(api_key=api_key)
 # 3. Sidebar Setup
 # ----------------------------------------------------
 with st.sidebar:
-    st.image(
-        "https://img.icons8.com/color/96/000000/combo-chart.png", width=80
-    )
     st.header("⚙️ Configuration Settings")
 
     num_personas = st.number_input(
@@ -87,7 +63,6 @@ with st.sidebar:
         max_value=500,
         value=25,
         step=1,
-        help="Total runs per scenario type.",
     )
 
     model_name = st.selectbox(
@@ -98,17 +73,13 @@ with st.sidebar:
             "qwen/qwen3.8-27b",
             "allam-2-7b",
         ],
-        help="Select an active LLM available in your environment.",
     )
 
     csv_path = st.text_input(
         "Output CSV File Name:", value="accountability_results.csv"
     )
 
-    st.markdown("---")
-    st.markdown("💡 **Tip:** Data persists in memory until re-simulated.")
-
-# Initialize or Load Cached Data
+# Load existing CSV into session_state if available
 if "df_data" not in st.session_state and os.path.exists(csv_path):
     try:
         st.session_state["df_data"] = pd.read_csv(csv_path)
@@ -130,7 +101,7 @@ Under company guidelines, Overall financial statement materiality is set at $1,0
 The client believes the financial statements are fairly presented and insists on receiving an unqualified opinion as soon as possible. The client firmly opposes any proposed audit adjustments and is pressuring you to waive them all.
 Because of product innovation and revisions, the client identified manufacturing equipment that may be impaired at the end of the reporting period. Under IAS 36 Impairment of Assets, the client estimated the equipment's recoverable amount. The client applied IFRS 13 Fair Value Measurement to determine fair value. As relevant observable inputs—such as quoted prices in an active market for this or similar equipment—were unavailable, the client used unobservable inputs, which are categorised as Level 3 inputs under the IFRS 13 fair value hierarchy. The Chief Financial Officer, David Vance, developed the unobservable inputs and valued the equipment using a discounted cash flow (DCF) model. The equipment’s recoverable amount was estimated at $3 million to $4 million, while its recorded value was $3,450,000. The CFO formally concluded that no impairment was required.
 The audit team engaged the firm’s valuation specialists to assess the client’s estimate. The specialists provided the following advice: “We measure these assets based on discounted future cash flows, as there is no active market for these assets. Our estimated range for these assets is approximately $2,250,000 to $2,800,000. This range was developed using level 3 inputs under IFRS 13.”""",
-        height=200,
+        height=180,
     )
 
 with tab2:
@@ -151,23 +122,25 @@ with tab2:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# 5. Simulation Execution
+# 5. Simulation Execution & Download Button
 # ----------------------------------------------------
 st.divider()
 st.header("🚀 2. Run Simulation")
 
-c1, c2, c3 = st.columns([1, 1, 2])
+c1, c2, c3 = st.columns([1.2, 1.2, 2])
 with c1:
     run_btn = st.button(
         "▶️ Start Simulation", type="primary", use_container_width=True
     )
+
+# دکمه دانلود همواره خارج از اکشن کلیک و در صورت وجود داده‌ها قابل دسترسی است
 with c2:
     if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         csv_bytes = (
             st.session_state["df_data"].to_csv(index=False).encode("utf-8")
         )
         st.download_button(
-            label="📥 Download CSV Dataset",
+            label="📥 Download Results CSV",
             data=csv_bytes,
             file_name=csv_path,
             mime="text/csv",
@@ -273,80 +246,145 @@ if run_btn:
 
         status_text.empty()
         st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
+        st.rerun()  # تازه‌سازی صفحه برای فعال شدن آنی دکمه دانلود و نمودارها
 
     except Exception as e:
         st.error(f"Execution Error: {e}")
 
-# ----------------------------------------------------
-# 6. Current Dataset Display
-# ----------------------------------------------------
+# نمایش جدول داده‌های خام در کشوی اکستندد
 if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     with st.expander("🔍 View Raw Simulation Dataset", expanded=False):
         st.dataframe(st.session_state["df_data"], use_container_width=True)
 
 # ----------------------------------------------------
-# 7. Descriptive Statistics Section
+# 6. Descriptive Statistics & Visualizations
 # ----------------------------------------------------
-st.divider()
-st.header("📈 3. Descriptive Statistics Analysis")
-
 if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     df = st.session_state["df_data"].copy()
-
     df["Revision_Score"] = pd.to_numeric(df["Revision_Score"], errors="coerce")
     df["Believability_Score"] = pd.to_numeric(
         df["Believability_Score"], errors="coerce"
     )
-
     df_clean = df.dropna(subset=["Revision_Score", "Believability_Score"])
 
-    if df_clean.empty:
-        st.warning(
-            "⚠️ Dataset has missing numeric scores. Try running simulation again."
+    # ------------------ Descriptive Stats ------------------
+    st.divider()
+    st.header("📈 3. Descriptive Statistics Analysis")
+
+    def get_enhanced_stats(data, metric_col):
+        stats_list = []
+        for sc_name, group in data.groupby("scenario_type"):
+            series = group[metric_col].dropna()
+            if not series.empty:
+                mode_series = series.mode()
+                mode_val = (
+                    round(mode_series.iloc[0], 2)
+                    if not mode_series.empty
+                    else None
+                )
+                q75, q25 = stats.scoreatpercentile(series, [75, 25])
+
+                stats_list.append({
+                    "Scenario": sc_name,
+                    "Count (N)": int(series.count()),
+                    "Mean": round(series.mean(), 2),
+                    "Median": round(series.median(), 2),
+                    "Mode": mode_val,
+                    "Min": round(series.min(), 2),
+                    "Max": round(series.max(), 2),
+                    "Std. Dev": round(series.std(), 2),
+                    "IQR": round(q75 - q25, 2),
+                })
+        return pd.DataFrame(stats_list)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📊 Revision Score Summary")
+        st.dataframe(
+            get_enhanced_stats(df_clean, "Revision_Score"),
+            use_container_width=True,
+            hide_index=True,
         )
+
+    with col2:
+        st.subheader("🎯 Believability Score Summary")
+        st.dataframe(
+            get_enhanced_stats(df_clean, "Believability_Score"),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    # ------------------ Boxplots Section ------------------
+    st.divider()
+    st.header("📊 4. Distribution Boxplots")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    sns.set_theme(style="whitegrid")
+
+    # Boxplot 1: Revision Score
+    sns.boxplot(
+        data=df_clean,
+        x="scenario_type",
+        y="Revision_Score",
+        ax=axes[0],
+        palette="Set2",
+    )
+    axes[0].set_title("Revision Score Distribution by Scenario", fontsize=12)
+    axes[0].set_xlabel("Scenario Type", fontsize=10)
+    axes[0].set_ylabel("Revision Score (1-10)", fontsize=10)
+
+    # Boxplot 2: Believability Score
+    sns.boxplot(
+        data=df_clean,
+        x="scenario_type",
+        y="Believability_Score",
+        ax=axes[1],
+        palette="Set2",
+    )
+    axes[1].set_title(
+        "Believability Score Distribution by Scenario", fontsize=12
+    )
+    axes[1].set_xlabel("Scenario Type", fontsize=10)
+    axes[1].set_ylabel("Believability Score (0-100)", fontsize=10)
+
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    # ------------------ Hypothesis Testing ------------------
+    st.divider()
+    st.header("🧪 5. Mean Comparison Test (Independent Samples t-test)")
+
+    nokam_grp = df_clean[df_clean["scenario_type"] == "Nokam"]
+    kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
+
+    if not nokam_grp.empty and not kam_grp.empty:
+
+        def run_ttest(col_name):
+            t_stat, p_val = stats.ttest_ind(
+                nokam_grp[col_name].dropna(),
+                kam_grp[col_name].dropna(),
+                equal_var=False,
+            )
+            return round(t_stat, 3), round(p_val, 4)
+
+        t_rev, p_rev = run_ttest("Revision_Score")
+        t_bel, p_bel = run_ttest("Believability_Score")
+
+        ttest_df = pd.DataFrame({
+            "Metric": ["Revision Score", "Believability Score"],
+            "t-Statistic": [t_rev, t_bel],
+            "p-Value": [p_rev, p_bel],
+            "Significance (p < 0.05)": [
+                "Yes 🟢" if p_rev < 0.05 else "No 🔴",
+                "Yes 🟢" if p_bel < 0.05 else "No 🔴",
+            ],
+        })
+
+        st.dataframe(ttest_df, use_container_width=True, hide_index=True)
     else:
-
-        def get_enhanced_stats(data, metric_col):
-            stats_list = []
-            for sc_name, group in data.groupby("scenario_type"):
-                series = group[metric_col].dropna()
-                if not series.empty:
-                    mode_series = series.mode()
-                    mode_val = (
-                        round(mode_series.iloc[0], 2)
-                        if not mode_series.empty
-                        else None
-                    )
-                    q75, q25 = stats.scoreatpercentile(series, [75, 25])
-
-                    stats_list.append({
-                        "Scenario": sc_name,
-                        "Count (N)": int(series.count()),
-                        "Mean": round(series.mean(), 2),
-                        "Median": round(series.median(), 2),
-                        "Mode": mode_val,
-                        "Min": round(series.min(), 2),
-                        "Max": round(series.max(), 2),
-                        "Std. Dev": round(series.std(), 2),
-                        "IQR": round(q75 - q25, 2),
-                    })
-            return pd.DataFrame(stats_list)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("📊 Revision Score Summary")
-            rev_stats = get_enhanced_stats(df_clean, "Revision_Score")
-            st.dataframe(
-                rev_stats, use_container_width=True, hide_index=True
-            )
-
-        with col2:
-            st.subheader("🎯 Believability Score Summary")
-            bel_stats = get_enhanced_stats(df_clean, "Believability_Score")
-            st.dataframe(
-                bel_stats, use_container_width=True, hide_index=True
-            )
+        st.warning(
+            "Insufficient data in one or both scenarios to perform t-test."
+        )
 
 else:
-    st.info("ℹ️ Please run the simulation above to view descriptive stats.")
+    st.info("ℹ️ Please run the simulation above to view complete analysis.")
