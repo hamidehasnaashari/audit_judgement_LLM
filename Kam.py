@@ -96,7 +96,8 @@ with col_scenarios:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# 5. Simulation Execution
+# ----------------------------------------------------
+# Simulation Execution with Robust Score Extraction
 # ----------------------------------------------------
 st.divider()
 st.header("🚀 2. Run Simulation")
@@ -125,25 +126,28 @@ if st.button("Start Simulation"):
                 persona_id = f"AP_{global_persona_id}"
                 global_persona_id += 1
 
-                system_prompt = f"You have a {p_selected} position in the audit team. Your experience is {exp_selected}. Your gender is {gen_selected}."
+                system_prompt = (
+                    f"You are an auditor with a {p_selected} position. "
+                    f"Your experience is {exp_selected} and your gender is {gen_selected}. "
+                    f"Always respond strictly with numeric values as requested."
+                )
 
                 user_instruction = f"""
-                You are auditing a company, and this background information is provided: {base_scenario_text}.
-                In addition, the following situation happens: {sc_content}.
-                
-                Provide scores from 1 to 10 for the following question where 1 indicates the lowest and 10 the highest:
-                1. Revision: How likely are you to make management adjust the fair value estimates?
-                
-                Provide scores from 0 to 100% for the following question where 0 indicates the lowest and 100% the highest:
-                2. Believability: How much is the level of your confidence in the decision you just made regarding the impairment?
-                
-                Format your response EXACTLY like this:
-                Scores: [Revision], [Believability]
+                Background: {base_scenario_text}
+                Scenario: {sc_content}
+
+                Please evaluate and provide two numerical scores:
+                1. Revision score (from 1 to 10): How likely are you to make management adjust the fair value estimates?
+                2. Believability score (from 0 to 100): How confident are you in your decision regarding the impairment?
+
+                IMPORTANT: Output ONLY the two numbers separated by a comma (e.g., "7, 85"). Do not include any extra text.
                 """
 
                 status_text.text(
                     f"Running {persona_id} - Scenario: {sc_name}..."
                 )
+
+                rev_score, bel_score = None, None
 
                 try:
                     completion = client.chat.completions.create(
@@ -152,23 +156,22 @@ if st.button("Start Simulation"):
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_instruction},
                         ],
-                        temperature=0.7,
+                        temperature=0.3,  # Lower temperature for more consistent structural response
                     )
 
-                    response_text = (
-                        completion.choices[0].message.content.strip()
-                    )
-                    numbers = re.findall(r"\d+", response_text)
+                    response_text = completion.choices[0].message.content.strip()
 
-                    rev_score = (
-                        float(numbers[0]) if len(numbers) >= 1 else None
-                    )
-                    bel_score = (
-                        float(numbers[1]) if len(numbers) >= 2 else None
-                    )
+                    # Extract all numbers/floats from the model response
+                    numbers = re.findall(r"\d+(?:\.\d+)?", response_text)
+
+                    if len(numbers) >= 2:
+                        rev_score = float(numbers[0])
+                        bel_score = float(numbers[1])
+                    elif len(numbers) == 1:
+                        rev_score = float(numbers[0])
 
                 except Exception as err:
-                    rev_score, bel_score = None, None
+                    st.warning(f"Error fetching response for {persona_id}: {err}")
 
                 results.append({
                     "scenario_type": sc_name,
@@ -188,26 +191,12 @@ if st.button("Start Simulation"):
         st.session_state["df_data"] = df_res
 
         st.success(
-            f"Simulation completed! {len(df_res)} records generated and saved to '{csv_path}'."
+            f"Simulation completed! {len(df_res)} records generated and saved."
         )
         st.dataframe(df_res)
 
     except Exception as e:
         st.error(f"Execution Error: {e}")
-
-# Load cached data if available
-if "df_data" not in st.session_state and os.path.exists(csv_path):
-    st.session_state["df_data"] = pd.read_csv(csv_path)
-
-# 📥 دکمه دانلود ایمن (فقط در صورت وجود داده‌ها نمایش داده می‌شود)
-if "df_data" in st.session_state:
-    csv_bytes = st.session_state["df_data"].to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="📥 Download CSV Results",
-        data=csv_bytes,
-        file_name=csv_path,
-        mime="text/csv",
-    )
 # ----------------------------------------------------
 # 3. Descriptive Statistics
 # ----------------------------------------------------
