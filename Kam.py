@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 import random
 import re
 import matplotlib.pyplot as plt
@@ -24,16 +25,24 @@ st.markdown(
 )
 
 # ----------------------------------------------------
-# 2. Sidebar Configuration (Secure API Key & Settings)
+# 2. API Key Retrieval (Fully Automated & Hidden)
+# ----------------------------------------------------
+# Retrieve API Key securely from Streamlit Secrets or Environment Variables
+api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+
+if not api_key:
+    st.error(
+        "⚠️ API Key is missing! Please configure 'GROQ_API_KEY' in Streamlit secrets."
+    )
+    st.stop()
+
+# Initialize Groq Client automatically
+client = Groq(api_key=api_key)
+
+# ----------------------------------------------------
+# 3. Sidebar Configuration
 # ----------------------------------------------------
 st.sidebar.header("⚙️ Simulation Settings")
-
-# Hidden API Key Input for GitHub Security
-api_key = st.sidebar.text_input(
-    "Enter Groq API Key:",
-    type="password",
-    help="Keep your API key private. Do not hardcode it in public repositories.",
-)
 
 num_personas = st.sidebar.number_input(
     "Number of Replications (Personas per Scenario):",
@@ -53,7 +62,7 @@ csv_path = st.sidebar.text_input(
 )
 
 # ----------------------------------------------------
-# 3. Scenario Texts Display & Input
+# 4. Experimental Scenarios Display
 # ----------------------------------------------------
 st.header("📝 1. Experimental Scenarios")
 
@@ -87,117 +96,109 @@ with col_scenarios:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# 4. Simulation Execution Button
+# 5. Simulation Execution
 # ----------------------------------------------------
 st.divider()
 st.header("🚀 2. Run Simulation")
 
 if st.button("Start Simulation"):
-    if not api_key:
-        st.error(
-            "Please enter your Groq API key in the sidebar before starting!"
-        )
-    else:
-        try:
-            client = Groq(api_key=api_key)
-            results = []
-            global_persona_id = 1
+    try:
+        results = []
+        global_persona_id = 1
 
-            positions = ["Senior auditor", "Manager"]
-            experiences = ["3 years", "7 years", "11 years", "15 years"]
-            genders = ["Male", "Female"]
+        positions = ["Senior auditor", "Manager"]
+        experiences = ["3 years", "7 years", "11 years", "15 years"]
+        genders = ["Male", "Female"]
 
-            total_tasks = num_personas * len(scenarios_dict)
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        total_tasks = num_personas * len(scenarios_dict)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
 
-            completed = 0
-            p_selected = positions[0]
+        completed = 0
+        p_selected = positions[0]
 
-            for i in range(num_personas):
-                exp_selected = random.choice(experiences)
-                gen_selected = random.choice(genders)
+        for i in range(num_personas):
+            exp_selected = random.choice(experiences)
+            gen_selected = random.choice(genders)
 
-                for sc_name, sc_content in scenarios_dict.items():
-                    persona_id = f"AP_{global_persona_id}"
-                    global_persona_id += 1
+            for sc_name, sc_content in scenarios_dict.items():
+                persona_id = f"AP_{global_persona_id}"
+                global_persona_id += 1
 
-                    system_prompt = f"You have a {p_selected} position in the audit team. Your experience is {exp_selected}. Your gender is {gen_selected}."
+                system_prompt = f"You have a {p_selected} position in the audit team. Your experience is {exp_selected}. Your gender is {gen_selected}."
 
-                    user_instruction = f"""
-                    You are auditing a company, and this background information is provided: {base_scenario_text}.
-                    In addition, the following situation happens: {sc_content}.
-                    
-                    Provide scores from 1 to 10 for the following question where 1 indicates the lowest and 10 the highest:
-                    1. Revision: How likely are you to make management adjust the fair value estimates?
-                    
-                    Provide scores from 0 to 100% for the following question where 0 indicates the lowest and 100% the highest:
-                    2. Believability: How much is the level of your confidence in the decision you just made regarding the impairment?
-                    
-                    Format your response EXACTLY like this:
-                    Scores: [Revision], [Believability]
-                    """
+                user_instruction = f"""
+                You are auditing a company, and this background information is provided: {base_scenario_text}.
+                In addition, the following situation happens: {sc_content}.
+                
+                Provide scores from 1 to 10 for the following question where 1 indicates the lowest and 10 the highest:
+                1. Revision: How likely are you to make management adjust the fair value estimates?
+                
+                Provide scores from 0 to 100% for the following question where 0 indicates the lowest and 100% the highest:
+                2. Believability: How much is the level of your confidence in the decision you just made regarding the impairment?
+                
+                Format your response EXACTLY like this:
+                Scores: [Revision], [Believability]
+                """
 
-                    status_text.text(
-                        f"Running {persona_id} - Scenario: {sc_name}..."
+                status_text.text(
+                    f"Running {persona_id} - Scenario: {sc_name}..."
+                )
+
+                try:
+                    completion = client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_instruction},
+                        ],
+                        temperature=0.7,
                     )
 
-                    try:
-                        completion = client.chat.completions.create(
-                            model=model_name,
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_instruction},
-                            ],
-                            temperature=0.7,
-                        )
+                    response_text = completion.choices[0].message.content.strip()
+                    numbers = re.findall(r"\d+", response_text)
 
-                        response_text = (
-                            completion.choices[0].message.content.strip()
-                        )
-                        numbers = re.findall(r"\d+", response_text)
+                    rev_score = (
+                        float(numbers[0]) if len(numbers) >= 1 else None
+                    )
+                    bel_score = (
+                        float(numbers[1]) if len(numbers) >= 2 else None
+                    )
 
-                        rev_score = (
-                            float(numbers[0]) if len(numbers) >= 1 else None
-                        )
-                        bel_score = (
-                            float(numbers[1]) if len(numbers) >= 2 else None
-                        )
+                except Exception as err:
+                    rev_score, bel_score = None, None
 
-                    except Exception as err:
-                        rev_score, bel_score = None, None
+                results.append({
+                    "scenario_type": sc_name,
+                    "ID": persona_id,
+                    "position": p_selected,
+                    "Experience": exp_selected,
+                    "gender": gen_selected,
+                    "Revision_Score": rev_score,
+                    "Believability_Score": bel_score,
+                })
 
-                    results.append({
-                        "scenario_type": sc_name,
-                        "ID": persona_id,
-                        "position": p_selected,
-                        "Experience": exp_selected,
-                        "gender": gen_selected,
-                        "Revision_Score": rev_score,
-                        "Believability_Score": bel_score,
-                    })
+                completed += 1
+                progress_bar.progress(completed / total_tasks)
 
-                    completed += 1
-                    progress_bar.progress(completed / total_tasks)
+        df_res = pd.DataFrame(results)
+        df_res.to_csv(csv_path, index=False)
+        st.session_state["df_data"] = df_res
 
-            df_res = pd.DataFrame(results)
-            df_res.to_csv(csv_path, index=False)
-            st.session_state["df_data"] = df_res
+        st.success(
+            f"Simulation completed! {len(df_res)} records generated and saved to '{csv_path}'."
+        )
+        st.dataframe(df_res)
 
-            st.success(
-                f"Simulation completed! {len(df_res)} records generated and saved to '{csv_path}'."
-            )
-            st.dataframe(df_res)
-
-        except Exception as e:
-            st.error(f"Execution Error: {e}")
+    except Exception as e:
+        st.error(f"Execution Error: {e}")
 
 # Load cached data if available
 if "df_data" not in st.session_state and os.path.exists(csv_path):
     st.session_state["df_data"] = pd.read_csv(csv_path)
 
 # ----------------------------------------------------
-# 5. Descriptive Statistics
+# 6. Descriptive Statistics
 # ----------------------------------------------------
 st.divider()
 st.header("📈 3. Descriptive Statistics")
@@ -242,7 +243,7 @@ if st.button("Display Descriptive Statistics"):
         )
 
 # ----------------------------------------------------
-# 6. Mean Comparison & Hypothesis Testing (t-Test)
+# 7. Hypothesis Testing (Independent t-Test)
 # ----------------------------------------------------
 st.divider()
 st.header("🔬 4. Hypothesis Testing (Independent t-Test)")
@@ -292,7 +293,7 @@ if st.button("Compare Means (Mean Difference)"):
         st.warning("Please execute the simulation first.")
 
 # ----------------------------------------------------
-# 7. Boxplot Visualization
+# 8. Boxplot Visualization
 # ----------------------------------------------------
 st.divider()
 st.header("📦 5. Visualization (Boxplots)")
