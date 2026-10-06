@@ -198,45 +198,76 @@ if "df_data" not in st.session_state and os.path.exists(csv_path):
     st.session_state["df_data"] = pd.read_csv(csv_path)
 
 # ----------------------------------------------------
-# 6. Descriptive Statistics
+# 3. Descriptive Statistics
 # ----------------------------------------------------
 st.divider()
 st.header("📈 3. Descriptive Statistics")
 
 if st.button("Display Descriptive Statistics"):
     if "df_data" in st.session_state:
-        df = st.session_state["df_data"].dropna(
-            subset=["Revision_Score", "Believability_Score"]
+        df = st.session_state["df_data"].copy()
+
+        # 1. Convert columns to numeric to avoid data-type issues
+        df["Revision_Score"] = pd.to_numeric(
+            df["Revision_Score"], errors="coerce"
+        )
+        df["Believability_Score"] = pd.to_numeric(
+            df["Believability_Score"], errors="coerce"
         )
 
-        def get_stats_table(data, metric_col):
-            stats_data = []
-            for sc_name, group in data.groupby("scenario_type"):
-                mode_res = stats.mode(group[metric_col], keepdims=True)[0]
-                mode_val = mode_res[0] if len(mode_res) > 0 else None
-                stats_data.append({
-                    "Scenario": sc_name,
-                    "Count (N)": len(group[metric_col]),
-                    "Mean": round(group[metric_col].mean(), 2),
-                    "Median": group[metric_col].median(),
-                    "Mode": mode_val,
-                    "Std. Deviation": round(group[metric_col].std(), 2),
-                })
-            return pd.DataFrame(stats_data)
+        # Drop NaN values for accurate statistical calculation
+        df_clean = df.dropna(subset=["Revision_Score", "Believability_Score"])
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Revision Score Statistics")
-            st.dataframe(
-                get_stats_table(df, "Revision_Score"), use_container_width=True
+        if df_clean.empty:
+            st.error(
+                "No valid numeric data found. Please run the simulation first!"
             )
+        else:
 
-        with c2:
-            st.subheader("Believability Score Statistics")
-            st.dataframe(
-                get_stats_table(df, "Believability_Score"),
-                use_container_width=True,
-            )
+            def get_enhanced_stats(data, metric_col):
+                stats_list = []
+                for sc_name, group in data.groupby("scenario_type"):
+                    series = group[metric_col].dropna()
+
+                    if not series.empty:
+                        # Calculate Mode safely using pandas
+                        mode_series = series.mode()
+                        mode_val = (
+                            round(mode_series.iloc[0], 2)
+                            if not mode_series.empty
+                            else None
+                        )
+
+                        # Calculate IQR (Q3 - Q1)
+                        q75, q25 = stats.scoreatpercentile(series, [75, 25])
+                        iqr_val = q75 - q25
+
+                        stats_list.append({
+                            "Scenario": sc_name,
+                            "Count (N)": int(series.count()),
+                            "Mean": round(series.mean(), 2),
+                            "Median": round(series.median(), 2),
+                            "Mode": mode_val,
+                            "Min": round(series.min(), 2),
+                            "Max": round(series.max(), 2),
+                            "Std. Dev": round(series.std(), 2),
+                            "IQR": round(iqr_val, 2),
+                        })
+                return pd.DataFrame(stats_list)
+
+            # Display Tables
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.subheader("📌 Revision Score Analysis")
+                rev_stats = get_enhanced_stats(df_clean, "Revision_Score")
+                st.dataframe(rev_stats, use_container_width=True)
+
+            with col2:
+                st.subheader("📌 Believability Score Analysis")
+                bel_stats = get_enhanced_stats(df_clean, "Believability_Score")
+                st.dataframe(bel_stats, use_container_width=True)
+
     else:
         st.warning(
             "No data found. Please run the simulation first or check CSV file."
