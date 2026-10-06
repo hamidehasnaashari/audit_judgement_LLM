@@ -1,8 +1,7 @@
-import csv
-import io
 import os
 import random
 import re
+import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy.stats as stats
@@ -11,7 +10,7 @@ import streamlit as st
 from groq import Groq
 
 # ----------------------------------------------------
-# 1. Page Configuration
+# 1. Page & API Setup
 # ----------------------------------------------------
 st.set_page_config(
     page_title="Audit Decision-Making Simulation",
@@ -20,14 +19,8 @@ st.set_page_config(
 )
 
 st.title("📊 Auditor Decision-Making & KAM Disclosure Simulation")
-st.markdown(
-    "This dashboard simulates auditor decision-making across **Key Audit Matters (KAM)** scenarios and performs empirical statistical analysis."
-)
 
-# ----------------------------------------------------
-# 2. API Key Retrieval (Fully Automated & Hidden)
-# ----------------------------------------------------
-# Retrieve API Key securely from Streamlit Secrets or Environment Variables
+# Retrieve API Key
 api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 
 if not api_key:
@@ -36,11 +29,10 @@ if not api_key:
     )
     st.stop()
 
-# Initialize Groq Client automatically
 client = Groq(api_key=api_key)
 
 # ----------------------------------------------------
-# 3. Sidebar Configuration
+# 2. Sidebar Configuration
 # ----------------------------------------------------
 st.sidebar.header("⚙️ Simulation Settings")
 
@@ -66,8 +58,12 @@ csv_path = st.sidebar.text_input(
     "Output CSV File Name:", value="accountability_results.csv"
 )
 
+# Load existing CSV into session_state if available
+if "df_data" not in st.session_state and os.path.exists(csv_path):
+    st.session_state["df_data"] = pd.read_csv(csv_path)
+
 # ----------------------------------------------------
-# 4. Experimental Scenarios Display
+# 3. Experimental Scenarios
 # ----------------------------------------------------
 st.header("📝 1. Experimental Scenarios")
 
@@ -101,8 +97,7 @@ with col_scenarios:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# ----------------------------------------------------
-# Simulation Execution with Robust Score Extraction
+# 4. Simulation Execution
 # ----------------------------------------------------
 st.divider()
 st.header("🚀 2. Run Simulation")
@@ -145,7 +140,7 @@ if st.button("Start Simulation"):
                 1. Revision score (from 1 to 10): How likely are you to make management adjust the fair value estimates?
                 2. Believability score (from 0 to 100): How confident are you in your decision regarding the impairment?
 
-                IMPORTANT: Output ONLY the two numbers separated by a comma (e.g., "7, 85"). Do not include any extra text.
+                IMPORTANT: Output ONLY two numbers separated by a comma (e.g., "7, 85"). Do not include any extra text.
                 """
 
                 status_text.text(
@@ -154,29 +149,43 @@ if st.button("Start Simulation"):
 
                 rev_score, bel_score = None, None
 
-                try:
-                    completion = client.chat.completions.create(
-                        model=model_name,
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_instruction},
-                        ],
-                        temperature=0.3,  # Lower temperature for more consistent structural response
-                    )
+                # Retry logic to handle Rate Limit (429) errors
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        completion = client.chat.completions.create(
+                            model=model_name,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_instruction},
+                            ],
+                            temperature=0.3,
+                        )
 
-                    response_text = completion.choices[0].message.content.strip()
+                        response_text = (
+                            completion.choices[0].message.content.strip()
+                        )
+                        numbers = re.findall(r"\d+(?:\.\d+)?", response_text)
 
-                    # Extract all numbers/floats from the model response
-                    numbers = re.findall(r"\d+(?:\.\d+)?", response_text)
+                        if len(numbers) >= 2:
+                            rev_score = float(numbers[0])
+                            bel_score = float(numbers[1])
+                        elif len(numbers) == 1:
+                            rev_score = float(numbers[0])
 
-                    if len(numbers) >= 2:
-                        rev_score = float(numbers[0])
-                        bel_score = float(numbers[1])
-                    elif len(numbers) == 1:
-                        rev_score = float(numbers[0])
+                        break  # Exit retry loop if successful
 
-                except Exception as err:
-                    st.warning(f"Error fetching response for {persona_id}: {err}")
+                    except Exception as err:
+                        if "429" in str(err) and attempt < max_retries - 1:
+                            time.sleep(3)  # Wait 3 seconds before retrying
+                        else:
+                            st.warning(
+                                f"Error fetching response for {persona_id}: {err}"
+                            )
+                            break
+
+                # Delay to prevent hitting rate limits
+                time.sleep(0.5)
 
                 results.append({
                     "scenario_type": sc_name,
@@ -198,180 +207,19 @@ if st.button("Start Simulation"):
         st.success(
             f"Simulation completed! {len(df_res)} records generated and saved."
         )
-        st.dataframe(df_res)
 
     except Exception as e:
         st.error(f"Execution Error: {e}")
-# ----------------------------------------------------
-# 3. Descriptive Statistics
-# ----------------------------------------------------
-st.divider()
-st.header("📈 3. Descriptive Statistics")
 
-if st.button("Display Descriptive Statistics"):
-    if "df_data" in st.session_state:
-        df = st.session_state["df_data"].copy()
+# Display current stored data and Download Button outside the button click trigger
+if "df_data" in st.session_state and not st.session_state["df_data"].empty:
+    st.subheader("📋 Current Dataset Preview")
+    st.dataframe(st.session_state["df_data"], use_container_width=True)
 
-        # 1. Convert columns to numeric to avoid data-type issues
-        df["Revision_Score"] = pd.to_numeric(
-            df["Revision_Score"], errors="coerce"
-        )
-        df["Believability_Score"] = pd.to_numeric(
-            df["Believability_Score"], errors="coerce"
-        )
-
-        # Drop NaN values for accurate statistical calculation
-        df_clean = df.dropna(subset=["Revision_Score", "Believability_Score"])
-
-        if df_clean.empty:
-            st.error(
-                "No valid numeric data found. Please run the simulation first!"
-            )
-        else:
-
-            def get_enhanced_stats(data, metric_col):
-                stats_list = []
-                for sc_name, group in data.groupby("scenario_type"):
-                    series = group[metric_col].dropna()
-
-                    if not series.empty:
-                        # Calculate Mode safely using pandas
-                        mode_series = series.mode()
-                        mode_val = (
-                            round(mode_series.iloc[0], 2)
-                            if not mode_series.empty
-                            else None
-                        )
-
-                        # Calculate IQR (Q3 - Q1)
-                        q75, q25 = stats.scoreatpercentile(series, [75, 25])
-                        iqr_val = q75 - q25
-
-                        stats_list.append({
-                            "Scenario": sc_name,
-                            "Count (N)": int(series.count()),
-                            "Mean": round(series.mean(), 2),
-                            "Median": round(series.median(), 2),
-                            "Mode": mode_val,
-                            "Min": round(series.min(), 2),
-                            "Max": round(series.max(), 2),
-                            "Std. Dev": round(series.std(), 2),
-                            "IQR": round(iqr_val, 2),
-                        })
-                return pd.DataFrame(stats_list)
-
-            # Display Tables
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.subheader("📌 Revision Score Analysis")
-                rev_stats = get_enhanced_stats(df_clean, "Revision_Score")
-                st.dataframe(rev_stats, use_container_width=True)
-
-            with col2:
-                st.subheader("📌 Believability Score Analysis")
-                bel_stats = get_enhanced_stats(df_clean, "Believability_Score")
-                st.dataframe(bel_stats, use_container_width=True)
-
-    else:
-        st.warning(
-            "No data found. Please run the simulation first or check CSV file."
-        )
-
-# ----------------------------------------------------
-# 7. Hypothesis Testing (Independent t-Test)
-# ----------------------------------------------------
-st.divider()
-st.header("🔬 4. Hypothesis Testing (Independent t-Test)")
-
-if st.button("Compare Means (Mean Difference)"):
-    if "df_data" in st.session_state:
-        df = st.session_state["df_data"].dropna(
-            subset=["Revision_Score", "Believability_Score"]
-        )
-
-        nokam_group = df[df["scenario_type"] == "Nokam"]
-        kam_group = df[df["scenario_type"] == "Kam"]
-
-        if len(nokam_group) == 0 or len(kam_group) == 0:
-            st.error("Both 'Nokam' and 'Kam' scenarios are required for t-test.")
-        else:
-            for metric in ["Revision_Score", "Believability_Score"]:
-                st.subheader(f"Independent Samples t-Test for: {metric}")
-
-                group_nokam = nokam_group[metric]
-                group_kam = kam_group[metric]
-
-                t_stat, p_val = stats.ttest_ind(group_nokam, group_kam)
-
-                mean_nokam = group_nokam.mean()
-                mean_kam = group_kam.mean()
-                diff = mean_kam - mean_nokam
-
-                col_res1, col_res2, col_res3 = st.columns(3)
-                col_res1.metric("Mean (Nokam)", f"{mean_nokam:.2f}")
-                col_res2.metric("Mean (Kam)", f"{mean_kam:.2f}")
-                col_res3.metric("Mean Difference (Kam - Nokam)", f"{diff:.2f}")
-
-                st.write(f"**t-statistic:** `{t_stat:.4f}`")
-                st.write(f"**p-value:** `{p_val:.4f}`")
-
-                if p_val < 0.05:
-                    st.success(
-                        "✅ **Statistically Significant Difference** detected between scenarios ($p < 0.05$)."
-                    )
-                else:
-                    st.info(
-                        "ℹ️ **No Statistically Significant Difference** detected between scenarios ($p \ge 0.05$)."
-                    )
-                st.markdown("---")
-    else:
-        st.warning("Please execute the simulation first.")
-
-# ----------------------------------------------------
-# 8. Boxplot Visualization
-# ----------------------------------------------------
-st.divider()
-st.header("📦 5. Visualization (Boxplots)")
-
-if st.button("Generate Boxplots"):
-    if "df_data" in st.session_state:
-        df = st.session_state["df_data"].dropna(
-            subset=["Revision_Score", "Believability_Score"]
-        )
-
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        sns.set_theme(style="whitegrid")
-
-        # Revision Score Boxplot
-        sns.boxplot(
-            ax=axes[0],
-            data=df,
-            x="scenario_type",
-            y="Revision_Score",
-            palette="Blues",
-        )
-        axes[0].set_title(
-            "Revision Score Comparison", fontsize=12, fontweight="bold"
-        )
-        axes[0].set_xlabel("Scenario", fontsize=10)
-        axes[0].set_ylabel("Score (1 - 10)", fontsize=10)
-
-        # Believability Score Boxplot
-        sns.boxplot(
-            ax=axes[1],
-            data=df,
-            x="scenario_type",
-            y="Believability_Score",
-            palette="Greens",
-        )
-        axes[1].set_title(
-            "Believability Score Comparison", fontsize=12, fontweight="bold"
-        )
-        axes[1].set_xlabel("Scenario", fontsize=10)
-        axes[1].set_ylabel("Score (0 - 100%)", fontsize=10)
-
-        plt.tight_layout()
-        st.pyplot(fig)
-    else:
-        st.warning("Please execute the simulation first.")
+    csv_bytes = st.session_state["df_data"].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download CSV Results",
+        data=csv_bytes,
+        file_name=csv_path,
+        mime="text/csv",
+    )
