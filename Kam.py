@@ -155,7 +155,9 @@ if st.button("Start Simulation"):
                         temperature=0.7,
                     )
 
-                    response_text = completion.choices[0].message.content.strip()
+                    response_text = (
+                        completion.choices[0].message.content.strip()
+                    )
                     numbers = re.findall(r"\d+", response_text)
 
                     rev_score = (
@@ -197,15 +199,15 @@ if st.button("Start Simulation"):
 if "df_data" not in st.session_state and os.path.exists(csv_path):
     st.session_state["df_data"] = pd.read_csv(csv_path)
 
-
-# ADD button to download from streamlit
-st.download_button(
-    label="📥 Download CSV Results",
-    data=df_res.to_csv(index=False).encode("utf-8"),
-    file_name="accountability_results.csv",
-    mime="text/csv",
-)
-
+# 📥 دکمه دانلود ایمن (فقط در صورت وجود داده‌ها نمایش داده می‌شود)
+if "df_data" in st.session_state:
+    csv_bytes = st.session_state["df_data"].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download CSV Results",
+        data=csv_bytes,
+        file_name=csv_path,
+        mime="text/csv",
+    )
 # ----------------------------------------------------
 # 3. Descriptive Statistics
 # ----------------------------------------------------
