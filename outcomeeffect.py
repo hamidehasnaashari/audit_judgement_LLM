@@ -124,139 +124,178 @@ scenarios_dict = {
 }
 
 # ----------------------------------------------------
-# 5. Simulation Execution & Data Download
+# ----------------------------------------------------
+# 5. Data Source Selection (API Simulation vs File Upload)
 # ----------------------------------------------------
 st.divider()
-st.header("🚀 2. Run Simulation")
+st.header("📂 2. Data Source & Execution")
 
-c1, c2, c3 = st.columns([1.2, 1.2, 2])
-with c1:
-    run_btn = st.button(
-        "▶️ Start Simulation", type="primary", use_container_width=True
+# انتخاب حالت: اجرای جدید یا آپلود فایل
+data_mode = st.radio(
+    "Choose Data Source for Analysis:",
+    ["▶️ Run New Simulation (via API)", "📤 Upload Existing Dataset (CSV/Excel)"],
+    horizontal=True,
+)
+
+if data_mode == "▶️ Run New Simulation (via API)":
+    # ------------------ اجرای شبیه‌سازی از طریق API ------------------
+    c1, c2 = st.columns([1.5, 2.5])
+    with c1:
+        run_btn = st.button(
+            "🚀 Start API Simulation", type="primary", use_container_width=True
+        )
+
+    if run_btn:
+        try:
+            results = []
+            global_persona_id = 1
+
+            positions = ["Lead Audit Senior", "Manager"]
+            experiences = ["3 years", "7 years", "11 years", "15 years"]
+            genders = ["Male", "Female"]
+
+            total_tasks = num_personas * len(scenarios_dict)
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            completed = 0
+            p_selected = positions[0]
+
+            for i in range(num_personas):
+                exp_selected = random.choice(experiences)
+                gen_selected = random.choice(genders)
+
+                for sc_name, sc_content in scenarios_dict.items():
+                    persona_id = f"AP_{global_persona_id}"
+                    global_persona_id += 1
+
+                    system_prompt = (
+                        f"You are an auditor with a {p_selected} position. "
+                        f"Your experience is {exp_selected} and your gender is {gen_selected}. "
+                        f"Always respond strictly with a numeric value as requested."
+                    )
+
+                    user_instruction = f"""
+                    Background Context: {base_scenario_text}
+                    Outcome Condition: {sc_content}
+
+                    Based on the information presented, how would you evaluate the auditor's overall performance?
+                    Evaluate performance on an 11-point scale ranging from -5 to +5, where:
+                    -5 = Below Expectations
+                     0 = Met Expectations
+                    +5 = Above Expectations
+
+                    IMPORTANT: Output ONLY a single integer or decimal number between -5 and 5 (e.g., "3" or "-1"). Do not include any extra text.
+                    """
+
+                    status_text.text(
+                        f"🔄 Processing {persona_id} | Outcome: {sc_name}..."
+                    )
+
+                    exp_score = None
+                    max_retries = 3
+
+                    for attempt in range(max_retries):
+                        try:
+                            completion = client.chat.completions.create(
+                                model=model_name,
+                                messages=[
+                                    {
+                                        "role": "system",
+                                        "content": system_prompt,
+                                    },
+                                    {
+                                        "role": "user",
+                                        "content": user_instruction,
+                                    },
+                                ],
+                                temperature=0.3,
+                            )
+
+                            response_text = (
+                                completion.choices[0].message.content.strip()
+                            )
+                            # Extract integers/floats including negative numbers
+                            numbers = re.findall(
+                                r"[-+]?\d+(?:\.\d+)?", response_text
+                            )
+
+                            if len(numbers) >= 1:
+                                val = float(numbers[0])
+                                # Ensure within scale limits [-5, 5]
+                                exp_score = max(-5.0, min(5.0, val))
+
+                            break
+
+                        except Exception as err:
+                            if "429" in str(err) and attempt < max_retries - 1:
+                                time.sleep(3)
+                            else:
+                                break
+
+                    time.sleep(0.4)
+
+                    results.append({
+                        "scenario_type": sc_name,
+                        "ID": persona_id,
+                        "position": p_selected,
+                        "Experience": exp_selected,
+                        "gender": gen_selected,
+                        "Expectation_Score": exp_score,
+                    })
+
+                    completed += 1
+                    progress_bar.progress(completed / total_tasks)
+
+            df_res = pd.DataFrame(results)
+            df_res.to_csv(csv_path, index=False)
+            st.session_state["df_data"] = df_res
+
+            status_text.empty()
+            st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Execution Error: {e}")
+
+else:
+    # ------------------ آپلود فایل نتایج قبلی (CSV یا اکسل) ------------------
+    uploaded_file = st.file_uploader(
+        "📥 Upload Previously Saved Simulation Dataset (CSV or Excel):",
+        type=["csv", "xlsx", "xls"],
     )
 
-with c2:
-    if "df_data" in st.session_state and not st.session_state["df_data"].empty:
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_df = pd.read_csv(uploaded_file)
+            else:
+                uploaded_df = pd.read_excel(uploaded_file)
+
+            st.session_state["df_data"] = uploaded_df
+            st.success(
+                f"✅ File loaded successfully! Loaded {len(uploaded_df)} records."
+            )
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
+# ----------------------------------------------------
+# دانلود داده‌ها و نمایش جدول خام (مشترک برای هر دو حالت)
+# ----------------------------------------------------
+if "df_data" in st.session_state and not st.session_state["df_data"].empty:
+    col_dl, _ = st.columns([1.5, 3])
+    with col_dl:
         csv_bytes = (
             st.session_state["df_data"].to_csv(index=False).encode("utf-8")
         )
         st.download_button(
-            label="📥 Download Results CSV",
+            label="📥 Download Current Dataset CSV",
             data=csv_bytes,
             file_name=csv_path,
             mime="text/csv",
             use_container_width=True,
         )
 
-if run_btn:
-    try:
-        results = []
-        global_persona_id = 1
-
-        positions = ["Lead Audit Senior", "Manager"]
-        experiences = ["3 years", "7 years", "11 years", "15 years"]
-        genders = ["Male", "Female"]
-
-        total_tasks = num_personas * len(scenarios_dict)
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-        completed = 0
-        p_selected = positions[0]
-
-        for i in range(num_personas):
-            exp_selected = random.choice(experiences)
-            gen_selected = random.choice(genders)
-
-            for sc_name, sc_content in scenarios_dict.items():
-                persona_id = f"AP_{global_persona_id}"
-                global_persona_id += 1
-
-                system_prompt = (
-                    f"You are an auditor with a {p_selected} position. "
-                    f"Your experience is {exp_selected} and your gender is {gen_selected}. "
-                    f"Always respond strictly with a numeric value as requested."
-                )
-
-                user_instruction = f"""
-                Background Context: {base_scenario_text}
-                Outcome Condition: {sc_content}
-
-                Based on the information presented, how would you evaluate the auditor's overall performance?
-                Evaluate performance on an 11-point scale ranging from -5 to +5, where:
-                -5 = Below Expectations
-                 0 = Met Expectations
-                +5 = Above Expectations
-
-                IMPORTANT: Output ONLY a single integer or decimal number between -5 and 5 (e.g., "3" or "-1"). Do not include any extra text.
-                """
-
-                status_text.text(
-                    f"🔄 Processing {persona_id} | Outcome: {sc_name}..."
-                )
-
-                exp_score = None
-                max_retries = 3
-
-                for attempt in range(max_retries):
-                    try:
-                        completion = client.chat.completions.create(
-                            model=model_name,
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_instruction},
-                            ],
-                            temperature=0.3,
-                        )
-
-                        response_text = (
-                            completion.choices[0].message.content.strip()
-                        )
-                        # Extract integers/floats including negative numbers
-                        numbers = re.findall(
-                            r"[-+]?\d+(?:\.\d+)?", response_text
-                        )
-
-                        if len(numbers) >= 1:
-                            val = float(numbers[0])
-                            # Ensure within scale limits [-5, 5]
-                            exp_score = max(-5.0, min(5.0, val))
-
-                        break
-
-                    except Exception as err:
-                        if "429" in str(err) and attempt < max_retries - 1:
-                            time.sleep(3)
-                        else:
-                            break
-
-                time.sleep(0.4)
-
-                results.append({
-                    "scenario_type": sc_name,
-                    "ID": persona_id,
-                    "position": p_selected,
-                    "Experience": exp_selected,
-                    "gender": gen_selected,
-                    "Expectation_Score": exp_score,
-                })
-
-                completed += 1
-                progress_bar.progress(completed / total_tasks)
-
-        df_res = pd.DataFrame(results)
-        df_res.to_csv(csv_path, index=False)
-        st.session_state["df_data"] = df_res
-
-        status_text.empty()
-        st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
-        st.rerun()
-
-    except Exception as e:
-        st.error(f"Execution Error: {e}")
-
-# Raw dataset viewer
-if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     with st.expander("🔍 View Raw Simulation Dataset", expanded=False):
         st.dataframe(st.session_state["df_data"], use_container_width=True)
 
