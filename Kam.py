@@ -45,7 +45,8 @@ api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 
 if not api_key:
     st.error(
-        "⚠️ API Key is missing! Please configure 'GROQ_API_KEY' in Streamlit secrets."
+        "⚠️ API Key is missing! Please configure 'GROQ_API_KEY' in Streamlit"
+        " secrets."
     )
     st.stop()
 
@@ -109,20 +110,30 @@ with tab2:
     with col1:
         nokam_text = st.text_area(
             "Scenario 1: Nokam (No KAM Disclosure)",
-            value="In the audit environment, An independent auditor’s report contains only the auditor’s opinion and the basis for that opinion.",
+            value=(
+                "In the audit environment, An independent auditor’s report"
+                " contains only the auditor’s opinion and the basis for that"
+                " opinion."
+            ),
             height=120,
         )
     with col2:
         kam_text = st.text_area(
             "Scenario 2: Kam (KAM Disclosure Required)",
-            value="Auditing Standard ISA 701, Communicating Key Audit Matters in the Independent Auditor’s Report, requires auditors to disclose the Key Audit Matters. Thus the auditor has to include a paragraph for asset impairment and the way he dealt with it in auditing.",
+            value=(
+                "Auditing Standard ISA 701, Communicating Key Audit Matters in"
+                " the Independent Auditor’s Report, requires auditors to"
+                " disclose the Key Audit Matters. Thus the auditor has to"
+                " include a paragraph for asset impairment and the way he"
+                " dealt with it in auditing."
+            ),
             height=120,
         )
 
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# 5. Simulation Execution & Download Button
+# 5. Simulation Execution & Data Download
 # ----------------------------------------------------
 st.divider()
 st.header("🚀 2. Run Simulation")
@@ -133,7 +144,6 @@ with c1:
         "▶️ Start Simulation", type="primary", use_container_width=True
     )
 
-# دکمه دانلود همواره خارج از اکشن کلیک و در صورت وجود داده‌ها قابل دسترسی است
 with c2:
     if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         csv_bytes = (
@@ -173,8 +183,9 @@ if run_btn:
 
                 system_prompt = (
                     f"You are an auditor with a {p_selected} position. "
-                    f"Your experience is {exp_selected} and your gender is {gen_selected}. "
-                    f"Always respond strictly with numeric values as requested."
+                    f"Your experience is {exp_selected} and your gender is"
+                    f" {gen_selected}. Always respond strictly with numeric"
+                    " values as requested."
                 )
 
                 user_instruction = f"""
@@ -246,18 +257,18 @@ if run_btn:
 
         status_text.empty()
         st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
-        st.rerun()  # تازه‌سازی صفحه برای فعال شدن آنی دکمه دانلود و نمودارها
+        st.rerun()
 
     except Exception as e:
         st.error(f"Execution Error: {e}")
 
-# نمایش جدول داده‌های خام در کشوی اکستندد
+# کشوی مشاهده داده‌های خام
 if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     with st.expander("🔍 View Raw Simulation Dataset", expanded=False):
         st.dataframe(st.session_state["df_data"], use_container_width=True)
 
 # ----------------------------------------------------
-# 6. Descriptive Statistics & Visualizations
+# 6. Analysis Modules (Accordion / Expander UI)
 # ----------------------------------------------------
 if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     df = st.session_state["df_data"].copy()
@@ -267,124 +278,154 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
     )
     df_clean = df.dropna(subset=["Revision_Score", "Believability_Score"])
 
-    # ------------------ Descriptive Stats ------------------
     st.divider()
-    st.header("📈 3. Descriptive Statistics Analysis")
+    st.header("📊 3. Analysis & Visualizations")
 
-    def get_enhanced_stats(data, metric_col):
-        stats_list = []
-        for sc_name, group in data.groupby("scenario_type"):
-            series = group[metric_col].dropna()
-            if not series.empty:
-                mode_series = series.mode()
-                mode_val = (
-                    round(mode_series.iloc[0], 2)
-                    if not mode_series.empty
-                    else None
-                )
-                q75, q25 = stats.scoreatpercentile(series, [75, 25])
+    # ------------------ Expander 1: Descriptive Stats ------------------
+    with st.expander("📈 Descriptive Statistics Analysis", expanded=False):
 
-                stats_list.append({
-                    "Scenario": sc_name,
-                    "Count (N)": int(series.count()),
-                    "Mean": round(series.mean(), 2),
-                    "Median": round(series.median(), 2),
-                    "Mode": mode_val,
-                    "Min": round(series.min(), 2),
-                    "Max": round(series.max(), 2),
-                    "Std. Dev": round(series.std(), 2),
-                    "IQR": round(q75 - q25, 2),
-                })
-        return pd.DataFrame(stats_list)
+        def get_enhanced_stats(data, metric_col):
+            stats_list = []
+            for sc_name, group in data.groupby("scenario_type"):
+                series = group[metric_col].dropna()
+                if not series.empty:
+                    mode_series = series.mode()
+                    mode_val = (
+                        round(mode_series.iloc[0], 2)
+                        if not mode_series.empty
+                        else None
+                    )
+                    q75, q25 = stats.scoreatpercentile(series, [75, 25])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📊 Revision Score Summary")
-        st.dataframe(
-            get_enhanced_stats(df_clean, "Revision_Score"),
-            use_container_width=True,
-            hide_index=True,
-        )
+                    stats_list.append({
+                        "Scenario": sc_name,
+                        "Count (N)": int(series.count()),
+                        "Mean": round(series.mean(), 2),
+                        "Median": round(series.median(), 2),
+                        "Mode": mode_val,
+                        "Min": round(series.min(), 2),
+                        "Max": round(series.max(), 2),
+                        "Std. Dev": round(series.std(), 2),
+                        "IQR": round(q75 - q25, 2),
+                    })
+            return pd.DataFrame(stats_list)
 
-    with col2:
-        st.subheader("🎯 Believability Score Summary")
-        st.dataframe(
-            get_enhanced_stats(df_clean, "Believability_Score"),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    # ------------------ Boxplots Section ------------------
-    st.divider()
-    st.header("📊 4. Distribution Boxplots")
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    sns.set_theme(style="whitegrid")
-
-    # Boxplot 1: Revision Score
-    sns.boxplot(
-        data=df_clean,
-        x="scenario_type",
-        y="Revision_Score",
-        ax=axes[0],
-        palette="Set2",
-    )
-    axes[0].set_title("Revision Score Distribution by Scenario", fontsize=12)
-    axes[0].set_xlabel("Scenario Type", fontsize=10)
-    axes[0].set_ylabel("Revision Score (1-10)", fontsize=10)
-
-    # Boxplot 2: Believability Score
-    sns.boxplot(
-        data=df_clean,
-        x="scenario_type",
-        y="Believability_Score",
-        ax=axes[1],
-        palette="Set2",
-    )
-    axes[1].set_title(
-        "Believability Score Distribution by Scenario", fontsize=12
-    )
-    axes[1].set_xlabel("Scenario Type", fontsize=10)
-    axes[1].set_ylabel("Believability Score (0-100)", fontsize=10)
-
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    # ------------------ Hypothesis Testing ------------------
-    st.divider()
-    st.header("🧪 5. Mean Comparison Test (Independent Samples t-test)")
-
-    nokam_grp = df_clean[df_clean["scenario_type"] == "Nokam"]
-    kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
-
-    if not nokam_grp.empty and not kam_grp.empty:
-
-        def run_ttest(col_name):
-            t_stat, p_val = stats.ttest_ind(
-                nokam_grp[col_name].dropna(),
-                kam_grp[col_name].dropna(),
-                equal_var=False,
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("📊 Revision Score Summary")
+            st.dataframe(
+                get_enhanced_stats(df_clean, "Revision_Score"),
+                use_container_width=True,
+                hide_index=True,
             )
-            return round(t_stat, 3), round(p_val, 4)
 
-        t_rev, p_rev = run_ttest("Revision_Score")
-        t_bel, p_bel = run_ttest("Believability_Score")
+        with col2:
+            st.subheader("🎯 Believability Score Summary")
+            st.dataframe(
+                get_enhanced_stats(df_clean, "Believability_Score"),
+                use_container_width=True,
+                hide_index=True,
+            )
 
-        ttest_df = pd.DataFrame({
-            "Metric": ["Revision Score", "Believability Score"],
-            "t-Statistic": [t_rev, t_bel],
-            "p-Value": [p_rev, p_bel],
-            "Significance (p < 0.05)": [
-                "Yes 🟢" if p_rev < 0.05 else "No 🔴",
-                "Yes 🟢" if p_bel < 0.05 else "No 🔴",
-            ],
-        })
+    # ------------------ Expander 2: Boxplots & Distribution ------------------
+    with st.expander(
+        "📦 Distribution Boxplots & Individual Data Points", expanded=False
+    ):
+        fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
+        sns.set_theme(style="whitegrid")
 
-        st.dataframe(ttest_df, use_container_width=True, hide_index=True)
-    else:
-        st.warning(
-            "Insufficient data in one or both scenarios to perform t-test."
+        # Boxplot 1: Revision Score + Strip Plot (جهت نمایش تمام نقاط تکراری)
+        sns.boxplot(
+            data=df_clean,
+            x="scenario_type",
+            y="Revision_Score",
+            ax=axes[0],
+            palette="Set2",
+            width=0.4,
+            boxprops=dict(alpha=0.7),
         )
+        sns.stripplot(
+            data=df_clean,
+            x="scenario_type",
+            y="Revision_Score",
+            ax=axes[0],
+            color="black",
+            alpha=0.5,
+            jitter=0.2,
+            size=6,
+        )
+        axes[0].set_title(
+            "Revision Score Distribution (with Data Points)", fontsize=12
+        )
+        axes[0].set_xlabel("Scenario Type", fontsize=10)
+        axes[0].set_ylabel("Revision Score (1-10)", fontsize=10)
+        axes[0].set_ylim(0, 11)  # مقیاس کامل ۱ تا ۱۰
+
+        # Boxplot 2: Believability Score + Strip Plot
+        sns.boxplot(
+            data=df_clean,
+            x="scenario_type",
+            y="Believability_Score",
+            ax=axes[1],
+            palette="Set2",
+            width=0.4,
+            boxprops=dict(alpha=0.7),
+        )
+        sns.stripplot(
+            data=df_clean,
+            x="scenario_type",
+            y="Believability_Score",
+            ax=axes[1],
+            color="black",
+            alpha=0.5,
+            jitter=0.2,
+            size=6,
+        )
+        axes[1].set_title(
+            "Believability Score Distribution (with Data Points)", fontsize=12
+        )
+        axes[1].set_xlabel("Scenario Type", fontsize=10)
+        axes[1].set_ylabel("Believability Score (0-100)", fontsize=10)
+        axes[1].set_ylim(-5, 105)  # مقیاس کامل ۰ تا ۱۰۰
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    # ------------------ Expander 3: Hypothesis Testing ------------------
+    with st.expander(
+        "🧪 Mean Comparison Test (Independent Samples t-test)", expanded=False
+    ):
+        nokam_grp = df_clean[df_clean["scenario_type"] == "Nokam"]
+        kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
+
+        if not nokam_grp.empty and not kam_grp.empty:
+
+            def run_ttest(col_name):
+                t_stat, p_val = stats.ttest_ind(
+                    nokam_grp[col_name].dropna(),
+                    kam_grp[col_name].dropna(),
+                    equal_var=False,
+                )
+                return round(t_stat, 3), round(p_val, 4)
+
+            t_rev, p_rev = run_ttest("Revision_Score")
+            t_bel, p_bel = run_ttest("Believability_Score")
+
+            ttest_df = pd.DataFrame({
+                "Metric": ["Revision Score", "Believability Score"],
+                "t-Statistic": [t_rev, t_bel],
+                "p-Value": [p_rev, p_bel],
+                "Significance (p < 0.05)": [
+                    "Yes 🟢" if p_rev < 0.05 else "No 🔴",
+                    "Yes 🟢" if p_bel < 0.05 else "No 🔴",
+                ],
+            })
+
+            st.dataframe(ttest_df, use_container_width=True, hide_index=True)
+        else:
+            st.warning(
+                "Insufficient data in one or both scenarios to perform t-test."
+            )
 
 else:
     st.info("ℹ️ Please run the simulation above to view complete analysis.")
