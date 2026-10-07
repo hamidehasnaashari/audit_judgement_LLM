@@ -174,7 +174,6 @@ scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 st.divider()
 st.header("📂 2. Data Source & Execution")
 
-# انتخاب حالت: اجرای جدید یا آپلود فایل
 data_mode = st.radio(
     "Choose Data Source for Analysis:",
     ["▶️ Run New Simulation (via API)", "📤 Upload Existing Dataset (CSV/Excel)"],
@@ -182,7 +181,6 @@ data_mode = st.radio(
 )
 
 if data_mode == "▶️ Run New Simulation (via API)":
-    # ------------------ اجرای شبیه‌سازی از طریق API ------------------
     c1, c2 = st.columns([1.5, 2.5])
     with c1:
         run_btn = st.button(
@@ -190,17 +188,22 @@ if data_mode == "▶️ Run New Simulation (via API)":
         )
 
     if run_btn:
-        # انتخاب کلاینت فعال بر اساس پلتفرم انتخابی
         if platform == "Groq (Free Tier)":
             if not groq_key:
                 st.error("Please configure 'GROQ_API_KEY' first!")
                 st.stop()
             active_client = groq_client
+            extra_headers = {}
         else:
             if not openrouter_key:
                 st.error("Please configure 'OPENROUTER_API_KEY' first!")
                 st.stop()
             active_client = openrouter_client
+            # هدرهای الزامی پلتفرم OpenRouter
+            extra_headers = {
+                "HTTP-Referer": "https://streamlit.io",
+                "X-Title": "Audit Research App",
+            }
 
         try:
             results = []
@@ -232,15 +235,16 @@ if data_mode == "▶️ Run New Simulation (via API)":
                     )
 
                     user_instruction = f"""
-                    Background: {base_scenario_text}
-                    Scenario: {sc_content}
+Background Context: {base_scenario_text}
+Scenario: {sc_content}
 
-                    Please evaluate and provide two numerical scores:
-                    1. Revision score (from 1 to 10): How likely are you to make management adjust the fair value estimates?
-                    2. Believability score (from 0 to 100): How confident are you in your decision regarding the impairment?
+Evaluate the situation and provide exactly two numerical scores:
+1. Revision score (from 1 to 10): How likely are you to make management adjust the fair value estimates?
+2. Believability score (from 0 to 100): How confident are you in your decision regarding the impairment?
 
-                    IMPORTANT: Output ONLY two numbers separated by a comma (e.g., "7, 85"). Do not include any extra text.
-                    """
+Format your response ONLY as two numbers separated by a comma. Example: 6, 75
+Do not include explanations or extra text.
+"""
 
                     status_text.text(
                         f"🔄 Processing {persona_id} | Scenario: {sc_name}..."
@@ -251,43 +255,50 @@ if data_mode == "▶️ Run New Simulation (via API)":
 
                     for attempt in range(max_retries):
                         try:
-                            completion = active_client.chat.completions.create(
-                                model=model_name,
-                                messages=[
-                                    {
-                                        "role": "system",
-                                        "content": system_prompt,
-                                    },
-                                    {
-                                        "role": "user",
-                                        "content": user_instruction,
-                                    },
+                            # ارسال پارامترها به همراه هدرهای سفارشی OpenRouter
+                            call_params = {
+                                "model": model_name,
+                                "messages": [
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": user_instruction},
                                 ],
-                                temperature=0.3,
-                            )
+                                "temperature": 0.2,
+                                "max_tokens": 60,
+                            }
+                            if extra_headers:
+                                call_params["extra_headers"] = extra_headers
 
-                            response_text = (
-                                completion.choices[0].message.content.strip()
-                            )
-                            numbers = re.findall(
-                                r"\d+(?:\.\d+)?", response_text
-                            )
+                            completion = active_client.chat.completions.create(**call_params)
+
+                            response_text = completion.choices[0].message.content.strip()
+
+                            # حذف تگ‌های تفکر احتمالی در خروجی مدل‌های متن‌باز
+                            clean_text = re.sub(
+                                r"<think>.*?</think>", "", response_text, flags=re.DOTALL
+                            ).strip()
+
+                            # استخراج اعداد
+                            numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
 
                             if len(numbers) >= 2:
                                 rev_score = float(numbers[0])
                                 bel_score = float(numbers[1])
+                                break
                             elif len(numbers) == 1:
                                 rev_score = float(numbers[0])
-
-                            break
-
-                        except Exception as err:
-                            if "429" in str(err) and attempt < max_retries - 1:
-                                time.sleep(3)
-                            else:
                                 break
 
-                    time.sleep(0.4)
+                        except Exception as err:
+                            err_msg = str(err)
+                            if "429" in err_msg and attempt < max_retries - 1:
+                                status_text.warning(f"Rate limited on {persona_id}. Retrying in 4s...")
+                                time.sleep(4)
+                            else:
+                                st.warning(f"API notice on {persona_id}: {err_msg}")
+                                break
+
+                    # فاصله زمانی جهت جلوگیری از محدودیت نرخ مدل‌های رایگان
+                    time.sleep(0.7)
 
                     results.append({
                         "scenario_type": sc_name,
