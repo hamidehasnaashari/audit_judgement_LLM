@@ -176,6 +176,7 @@ with tab2:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
+# ----------------------------------------------------
 # 5. Data Source Selection (API Simulation vs File Upload)
 # ----------------------------------------------------
 st.divider()
@@ -275,28 +276,42 @@ Do not include explanations or extra text.
                                     {"role": "user", "content": user_instruction},
                                 ],
                                 "temperature": 0.2,
-                                "max_tokens": 60,
+                                "max_tokens": 100,
                             }
                             if extra_headers:
                                 call_params["extra_headers"] = extra_headers
 
                             completion = active_client.chat.completions.create(**call_params)
-                            response_text = completion.choices[0].message.content.strip()
 
-                            # پاک‌سازی تگ‌های استدلال/تفکر در خروجی مدل‌ها
-                            clean_text = re.sub(
-                                r"<think>.*?</think>", "", response_text, flags=re.DOTALL
-                            ).strip()
+                            # استخراج ایمن پیام و جلوگیری از خطای NoneType
+                            msg = completion.choices[0].message if completion.choices else None
+                            raw_content = getattr(msg, "content", None)
 
-                            numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
+                            # در صورت استفاده مدل از فیلد استدلال داخلی (Reasoning)
+                            if not raw_content and hasattr(msg, "reasoning_content"):
+                                raw_content = getattr(msg, "reasoning_content", None)
 
-                            if len(numbers) >= 2:
-                                rev_score = float(numbers[0])
-                                bel_score = float(numbers[1])
-                                break
-                            elif len(numbers) == 1:
-                                rev_score = float(numbers[0])
-                                break
+                            if raw_content:
+                                response_text = str(raw_content).strip()
+
+                                # پاک‌سازی تگ‌های استدلال/تفکر
+                                clean_text = re.sub(
+                                    r"<think>.*?</think>", "", response_text, flags=re.DOTALL
+                                ).strip()
+
+                                numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
+
+                                if len(numbers) >= 2:
+                                    rev_score = float(numbers[0])
+                                    bel_score = float(numbers[1])
+                                    break
+                                elif len(numbers) == 1:
+                                    rev_score = float(numbers[0])
+                                    break
+                            else:
+                                if attempt < max_retries - 1:
+                                    time.sleep(2)
+                                    continue
 
                         except Exception as err:
                             err_msg = str(err)
@@ -307,8 +322,8 @@ Do not include explanations or extra text.
                                 st.warning(f"API notice on {persona_id}: {err_msg}")
                                 break
 
-                    # تاخیر استاندارد بین درخواست‌ها جهت حفظ سقف Rate Limit
-                    time.sleep(0.5 if platform == "Google AI Studio (Free)" else 0.7)
+                    # فاصله زمانی استاندارد بین درخواست‌ها
+                    time.sleep(0.5 if platform == "Google AI Studio (Free)" else 0.8)
 
                     results.append({
                         "scenario_type": sc_name,
