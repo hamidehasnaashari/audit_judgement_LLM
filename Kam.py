@@ -38,90 +38,92 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------------------------------------------
-# 2. Multi-Platform API Setup (Groq & OpenRouter)
+# 2. API Setup (Groq, OpenRouter & Google AI Studio)
 # ----------------------------------------------------
 from openai import OpenAI
 
-# دریافت کلیدهای هر دو سرویس از Secrets یا متغیرهای سیستمی
 groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 openrouter_key = st.secrets.get("OPENROUTER_API_KEY") or os.getenv(
     "OPENROUTER_API_KEY"
 )
+gemini_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 
-# ساخت کلاینت‌ها (OpenRouter با بیس‌یو‌آر‌ال اختصاصی و کتابخانه OpenAI سازگار است)
-groq_client = (
-    Groq(api_key=groq_key)
-    if groq_key
-    else OpenAI(
-        base_url="https://api.groq.com/openai/v1", api_key=groq_key or "missing"
-    )
-)
+groq_client = Groq(api_key=groq_key) if groq_key else None
 
 openrouter_client = (
     OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=openrouter_key or "missing",
-        default_headers={
-            "HTTP-Referer": "https://streamlit.io",  # ضروری برای OpenRouter
-            "X-Title": "Audit Simulation Research",  # اختیاری اما توصیه شده
-        },
     )
     if openrouter_key
     else None
 )
+
+# اتصال به Google AI Studio از طریق اندپوینت سازگار با OpenAI
+gemini_client = (
+    OpenAI(
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        api_key=gemini_key or "missing",
+    )
+    if gemini_key
+    else None
+)
 # ----------------------------------------------------
-# 3. Sidebar Setup: Platform & Free Models
+# ----------------------------------------------------
+# 3. Sidebar Setup
 # ----------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Configuration Settings")
+  st.header("⚙️ Configuration Settings")
 
-    platform = st.selectbox(
-        "Select Provider / Platform:", ["Groq (Free Tier)", "OpenRouter (Free)"]
+  platform = st.selectbox(
+      "Select Provider / Platform:",
+      ["Google AI Studio (Free)", "Groq (Free Tier)", "OpenRouter"],
+  )
+
+  if platform == "Google AI Studio (Free)":
+    if not gemini_key:
+      st.warning("⚠️ 'GEMINI_API_KEY' is missing in Secrets!")
+    model_name = st.selectbox(
+        "Select Free Gemini Model:",
+        [
+            "gemini-2.5-flash",  # سریع، دقیق و با سهمیه رایگان بالا
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ],
+    )
+  elif platform == "Groq (Free Tier)":
+    if not groq_key:
+      st.warning("⚠️ 'GROQ_API_KEY' is missing in Secrets!")
+    model_name = st.selectbox(
+        "Select Free Model (Groq):",
+        [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+            "allam-2-7b",
+        ],
+    )
+  else:
+    if not openrouter_key:
+      st.warning("⚠️ 'OPENROUTER_API_KEY' is missing in Secrets!")
+    model_name = st.selectbox(
+        "Select Model (OpenRouter):",
+        [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemma-2-9b-it:free",
+        ],
     )
 
-    if platform == "Groq (Free Tier)":
-        if not groq_key:
-            st.warning("⚠️ 'GROQ_API_KEY' is missing in Secrets!")
-        model_name = st.selectbox(
-            "Select Free Model (Groq):",
-            [
-                "openai/gpt-oss-120b",
-                "openai/gpt-oss-20b",
-                "qwen/qwen3.8-27b",
-                "allam-2-7b",
-            ],
-        )
-    else:
-        if not openrouter_key:
-            st.warning("⚠️ 'OPENROUTER_API_KEY' is missing in Secrets!")
-        model_name = st.selectbox(
-            "Select Free Model (OpenRouter):",
-            [
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "meta-llama/llama-3.1-8b-instruct:free",
-                "google/gemma-2-9b-it:free",
-                "qwen/qwen-2.5-72b-instruct:free",
-                "mistralai/mistral-7b-instruct:free",
-            ],
-        )
+  num_personas = st.number_input(
+      "Number of Replications (Personas/Scenario):",
+      min_value=1,
+      max_value=500,
+      value=25,
+      step=1,
+  )
 
-    num_personas = st.number_input(
-        "Number of Replications (Personas/Scenario):",
-        min_value=1,
-        max_value=500,
-        value=25,
-        step=1,
-    )
-
-    csv_path = st.text_input("Output CSV File Name:", value="KAM_results.csv")
-
-# Load existing CSV into session_state if available
-if "df_data" not in st.session_state and os.path.exists(csv_path):
-    try:
-        st.session_state["df_data"] = pd.read_csv(csv_path)
-    except Exception:
-        pass
+  csv_path = st.text_input("Output CSV File Name:", value="simulation_results.csv")
 # ----------------------------------------------------
 # 4. Experimental Scenarios (Tabs)
 # ----------------------------------------------------
@@ -168,7 +170,6 @@ with tab2:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
-# ----------------------------------------------------
 # 5. Data Source Selection (API Simulation vs File Upload)
 # ----------------------------------------------------
 st.divider()
@@ -188,18 +189,24 @@ if data_mode == "▶️ Run New Simulation (via API)":
         )
 
     if run_btn:
-        if platform == "Groq (Free Tier)":
+        extra_headers = {}
+
+        # تخصیص کلاینت فعال بر اساس پلتفرم انتخابی
+        if platform == "Google AI Studio (Free)":
+            if not gemini_key:
+                st.error("Please configure 'GEMINI_API_KEY' in Secrets first!")
+                st.stop()
+            active_client = gemini_client
+        elif platform == "Groq (Free Tier)":
             if not groq_key:
-                st.error("Please configure 'GROQ_API_KEY' first!")
+                st.error("Please configure 'GROQ_API_KEY' in Secrets first!")
                 st.stop()
             active_client = groq_client
-            extra_headers = {}
         else:
             if not openrouter_key:
-                st.error("Please configure 'OPENROUTER_API_KEY' first!")
+                st.error("Please configure 'OPENROUTER_API_KEY' in Secrets first!")
                 st.stop()
             active_client = openrouter_client
-            # هدرهای الزامی پلتفرم OpenRouter
             extra_headers = {
                 "HTTP-Referer": "https://streamlit.io",
                 "X-Title": "Audit Research App",
@@ -247,7 +254,7 @@ Do not include explanations or extra text.
 """
 
                     status_text.text(
-                        f"🔄 Processing {persona_id} | Scenario: {sc_name}..."
+                        f"🔄 Processing {persona_id} | Scenario: {sc_name} ({platform})..."
                     )
 
                     rev_score, bel_score = None, None
@@ -255,7 +262,6 @@ Do not include explanations or extra text.
 
                     for attempt in range(max_retries):
                         try:
-                            # ارسال پارامترها به همراه هدرهای سفارشی OpenRouter
                             call_params = {
                                 "model": model_name,
                                 "messages": [
@@ -269,15 +275,13 @@ Do not include explanations or extra text.
                                 call_params["extra_headers"] = extra_headers
 
                             completion = active_client.chat.completions.create(**call_params)
-
                             response_text = completion.choices[0].message.content.strip()
 
-                            # حذف تگ‌های تفکر احتمالی در خروجی مدل‌های متن‌باز
+                            # پاک‌سازی تگ‌های استدلال/تفکر در خروجی مدل‌ها
                             clean_text = re.sub(
                                 r"<think>.*?</think>", "", response_text, flags=re.DOTALL
                             ).strip()
 
-                            # استخراج اعداد
                             numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
 
                             if len(numbers) >= 2:
@@ -297,8 +301,8 @@ Do not include explanations or extra text.
                                 st.warning(f"API notice on {persona_id}: {err_msg}")
                                 break
 
-                    # فاصله زمانی جهت جلوگیری از محدودیت نرخ مدل‌های رایگان
-                    time.sleep(0.7)
+                    # تاخیر استاندارد بین درخواست‌ها جهت حفظ سقف Rate Limit
+                    time.sleep(0.5 if platform == "Google AI Studio (Free)" else 0.7)
 
                     results.append({
                         "scenario_type": sc_name,
