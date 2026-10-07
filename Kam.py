@@ -200,8 +200,7 @@ if data_mode == "▶️ Run New Simulation (via API)":
             completed = 0
             p_selected = positions[0]
 
-            if run_btn:
-        # انتخاب کلاینت فعال بر اساس پلتفرم انتخابی
+    if run_btn:
         if platform == "Groq (Free Tier)":
             if not groq_key:
                 st.error("Please configure 'GROQ_API_KEY' first!")
