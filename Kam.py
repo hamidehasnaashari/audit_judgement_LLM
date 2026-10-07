@@ -39,24 +39,68 @@ st.markdown(
 )
 
 # ----------------------------------------------------
-# 2. API Setup
+# 2. Multi-Platform API Setup (Groq & OpenRouter)
 # ----------------------------------------------------
-api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+from openai import OpenAI
 
-if not api_key:
-    st.error(
-        "⚠️ API Key is missing! Please configure 'GROQ_API_KEY' in Streamlit"
-        " secrets."
+# دریافت کلیدهای هر دو سرویس از Secrets یا متغیرهای سیستمی
+groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+openrouter_key = st.secrets.get("OPENROUTER_API_KEY") or os.getenv(
+    "OPENROUTER_API_KEY"
+)
+
+# ساخت کلاینت‌ها (OpenRouter با بیس‌یو‌آر‌ال اختصاصی و کتابخانه OpenAI سازگار است)
+groq_client = (
+    Groq(api_key=groq_key)
+    if groq_key
+    else OpenAI(
+        base_url="https://api.groq.com/openai/v1", api_key=groq_key or "missing"
     )
-    st.stop()
+)
 
-client = Groq(api_key=api_key)
-
+openrouter_client = (
+    OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=openrouter_key or "missing",
+    )
+    if openrouter_key
+    else None
+)
 # ----------------------------------------------------
-# 3. Sidebar Setup
+# 3. Sidebar Setup: Platform & Free Models
 # ----------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuration Settings")
+
+    platform = st.selectbox(
+        "Select Provider / Platform:", ["Groq (Free Tier)", "OpenRouter (Free)"]
+    )
+
+    if platform == "Groq (Free Tier)":
+        if not groq_key:
+            st.warning("⚠️ 'GROQ_API_KEY' is missing in Secrets!")
+        model_name = st.selectbox(
+            "Select Free Model (Groq):",
+            [
+                "openai/gpt-oss-120b",
+                "openai/gpt-oss-20b",
+                "qwen/qwen3.8-27b",
+                "allam-2-7b",
+            ],
+        )
+    else:
+        if not openrouter_key:
+            st.warning("⚠️ 'OPENROUTER_API_KEY' is missing in Secrets!")
+        model_name = st.selectbox(
+            "Select Free Model (OpenRouter):",
+            [
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "meta-llama/llama-3.1-8b-instruct:free",
+                "google/gemma-2-9b-it:free",
+                "qwen/qwen-2.5-72b-instruct:free",
+                "mistralai/mistral-7b-instruct:free",
+            ],
+        )
 
     num_personas = st.number_input(
         "Number of Replications (Personas/Scenario):",
@@ -66,19 +110,7 @@ with st.sidebar:
         step=1,
     )
 
-    model_name = st.selectbox(
-        "Select LLM Model:",
-        [
-            "openai/gpt-oss-120b",
-            "openai/gpt-oss-20b",
-            "qwen/qwen3.8-27b",
-            "allam-2-7b",
-        ],
-    )
-
-    csv_path = st.text_input(
-        "Output CSV File Name:", value="KAM_results.csv"
-    )
+    csv_path = st.text_input("Output CSV File Name:", value="KAM_results.csv")
 
 # Load existing CSV into session_state if available
 if "df_data" not in st.session_state and os.path.exists(csv_path):
@@ -86,7 +118,6 @@ if "df_data" not in st.session_state and os.path.exists(csv_path):
         st.session_state["df_data"] = pd.read_csv(csv_path)
     except Exception:
         pass
-
 # ----------------------------------------------------
 # 4. Experimental Scenarios (Tabs)
 # ----------------------------------------------------
