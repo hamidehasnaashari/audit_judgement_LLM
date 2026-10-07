@@ -200,6 +200,22 @@ if data_mode == "▶️ Run New Simulation (via API)":
             completed = 0
             p_selected = positions[0]
 
+            if run_btn:
+        # انتخاب کلاینت فعال بر اساس پلتفرم انتخابی
+        if platform == "Groq (Free Tier)":
+            if not groq_key:
+                st.error("Please configure 'GROQ_API_KEY' first!")
+                st.stop()
+            active_client = groq_client
+        else:
+            if not openrouter_key:
+                st.error("Please configure 'OPENROUTER_API_KEY' first!")
+                st.stop()
+            active_client = openrouter_client
+
+        try:
+            results = []
+
             for i in range(num_personas):
                 exp_selected = random.choice(experiences)
                 gen_selected = random.choice(genders)
