@@ -62,6 +62,10 @@ openrouter_client = (
     OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=openrouter_key or "missing",
+        default_headers={
+            "HTTP-Referer": "https://streamlit.io",  # ضروری برای OpenRouter
+            "X-Title": "Audit Simulation Research",  # اختیاری اما توصیه شده
+        },
     )
     if openrouter_key
     else None
