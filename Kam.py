@@ -84,13 +84,11 @@ with st.sidebar:
     if not gemini_key:
       st.warning("⚠️ 'GEMINI_API_KEY' is missing in Secrets!")
     model_name = st.selectbox(
-        "Select Free Gemini Model:",
-        [
-            "gemini-2.5-flash",  # سریع، دقیق و با سهمیه رایگان بالا
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-        ],
+       "Select Free Gemini Model:",
+          [
+              "gemini-3.8-flash",  # مدل پیشنهادی و فعال فعلی گوگل
+              "gemini-2.5-flash",
+          ],
     )
   elif platform == "Groq (Free Tier)":
     if not groq_key:
