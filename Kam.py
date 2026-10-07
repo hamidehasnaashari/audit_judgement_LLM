@@ -164,6 +164,7 @@ with tab2:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
+# ----------------------------------------------------
 # 5. Data Source Selection (API Simulation vs File Upload)
 # ----------------------------------------------------
 st.divider()
@@ -185,6 +186,18 @@ if data_mode == "▶️ Run New Simulation (via API)":
         )
 
     if run_btn:
+        # انتخاب کلاینت فعال بر اساس پلتفرم انتخابی
+        if platform == "Groq (Free Tier)":
+            if not groq_key:
+                st.error("Please configure 'GROQ_API_KEY' first!")
+                st.stop()
+            active_client = groq_client
+        else:
+            if not openrouter_key:
+                st.error("Please configure 'OPENROUTER_API_KEY' first!")
+                st.stop()
+            active_client = openrouter_client
+
         try:
             results = []
             global_persona_id = 1
@@ -199,21 +212,6 @@ if data_mode == "▶️ Run New Simulation (via API)":
 
             completed = 0
             p_selected = positions[0]
-
-    if run_btn:
-        if platform == "Groq (Free Tier)":
-            if not groq_key:
-                st.error("Please configure 'GROQ_API_KEY' first!")
-                st.stop()
-            active_client = groq_client
-        else:
-            if not openrouter_key:
-                st.error("Please configure 'OPENROUTER_API_KEY' first!")
-                st.stop()
-            active_client = openrouter_client
-
-        try:
-            results = []
 
             for i in range(num_personas):
                 exp_selected = random.choice(experiences)
@@ -249,7 +247,7 @@ if data_mode == "▶️ Run New Simulation (via API)":
 
                     for attempt in range(max_retries):
                         try:
-                            completion = client.chat.completions.create(
+                            completion = active_client.chat.completions.create(
                                 model=model_name,
                                 messages=[
                                     {
