@@ -320,7 +320,7 @@ Do not include explanations or extra text.
                                     {"role": "system", "content": system_prompt},
                                     {"role": "user", "content": user_instruction},
                                 ],
-                                "temperature": 0.3,
+                                "temperature": 0.7,
                                 "max_tokens": 300,
                             }
                             if extra_headers:
