@@ -175,16 +175,16 @@ with tab2:
         )
     with col2:
          with col2:
-     kam_text = st.text_area(
-        "Scenario 2: Kam (KAM Disclosure Required)",
-        value=(
-            "Auditing Standard ISA 701, Communicating Key Audit Matters in the"
-            " Independent Auditor’s Report, requires auditors to disclose the"
-            " Key Audit Matters. requires auditors to disclose Key Audit Matters that in the auditor’s professional judgement,"
-            "were of most significance in the audit of the financial report of the current period."
-        ),
-        height=120,
-    )
+             kam_text = st.text_area(
+                "Scenario 2: Kam (KAM Disclosure Required)",
+                value=(
+                    "Auditing Standard ISA 701, Communicating Key Audit Matters in the"
+                    " Independent Auditor’s Report, requires auditors to disclose the"
+                    " Key Audit Matters. requires auditors to disclose Key Audit Matters that in the auditor’s professional judgement,"
+                    "were of most significance in the audit of the financial report of the current period."
+                ),
+                height=120,
+            )
 
 
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
