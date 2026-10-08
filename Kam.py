@@ -143,20 +143,20 @@ with tab1:
       value="""Your client, ABC Integrated Products, Ltd., is a publicly traded manufacturing company headquartered in Melbourne, Australia. 
       ABC Integrated is profitable and has experienced stable financial growth over the past five years. Its financial indicators, including liquidity
       and leverage, align with industry averages. Prior audits found no identifiable material weaknesses in the company’s internal controls.
-Under company guidelines, Overall financial statement materiality is set at $1,000,000 based on net income. During the audit, we agreed this materiality level was appropriate. All standard audit tests have been completed by competent members
+Under company guidelines, Overall financial statement materiality is set at $1,000,000 based on net income, and Performance Materiality is set at $500,000. During the audit, we agreed this materiality level was appropriate. All standard audit tests have been completed by competent members
 of your audit team, and you are satisfied with the results. Aside from the unresolved matter described on the following page, we are not considering
 any other financial statement adjustments. 
 The client believes the financial statements are fairly presented and insists on receiving an unqualified opinion as soon as possible. 
+The CFO firmly emphasizes that any recorded impairment write-down would trigger a debt covenant breach with primary lenders, thereby opposing any proposed audit adjustments.
 Because of product innovation and revisions, the client identified manufacturing equipment that may be impaired at the end of the reporting period.
 Under IAS 36 Impairment of Assets, the client estimated the equipment's recoverable amount. The client applied IFRS 13 Fair Value Measurement to
 determine fair value. As relevant observable inputs—such as quoted prices in an active market for this or similar equipment—were unavailable, 
 the client used unobservable inputs, which are categorised as Level 3 inputs under the IFRS 13 fair value hierarchy. The Chief Financial Officer,
-David Vance, developed the unobservable inputs and valued the equipment using a discounted cash flow (DCF) model. The recorded value was at $3,450,000.
-The CFO formally concluded that no impairment was required.
+David Vance, developed the unobservable inputs and valued the equipment using a discounted cash flow (DCF) model at a range of $3,400,000 to $3,900,000, formally concluding that 
+the carrying amount of $3,450,000 requires no impairment.
 The audit team engaged the firm’s valuation specialists to assess the client’s estimate. The specialists provided the following advice:
-“We measure these assets based on discounted future cash flows, as there is no active market for these assets. Our estimated range for
-these assets is approximately $2,250,000 to $3,250,000. This range was developed using level 3 inputs under IFRS 13. you take a different
-view of the industry prospects from the audit clien”""",
+“We measure these assets based on discounted future cash flows, as there is no active market for these assets. Given differing views on industry growth rates and technological obsolescence, our independent valuation range is approximately $2,400,000 to $2,900,000.
+. This range was developed using level 3 inputs under IFRS 13. """,
       height=180,
   )
 
