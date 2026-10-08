@@ -533,6 +533,7 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
 
         if not nokam_grp.empty and not kam_grp.empty:
+            import math  # برای بررسی مقادیر خالی یا صفر شدن واریانس
 
             def run_ttest(col_name):
                 # جداسازی داده‌های دو گروه و حذف مقادیر خالی
@@ -553,29 +554,44 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
                     equal_var=False,
                 )
                 
+                # برگرداندن مقادیر خام برای بررسی NaN بودن در مرحله بعد
                 return (
                     round(mean_nokam, 2),
                     round(mean_kam, 2),
                     round(mean_diff, 2),
-                    round(t_stat, 3),
-                    round(p_val, 4)
+                    t_stat,
+                    p_val
                 )
 
+            # پیدا کردن نام دقیق متغیر سوم (حتی اگر با s کوچک ذخیره شده باشد)
             metrics_to_test = ["Revision_Score", "Believability_Score"]
             if "Accountability_Score" in df_clean.columns:
                 metrics_to_test.append("Accountability_Score")
+            elif "Accountability_score" in df_clean.columns:
+                metrics_to_test.append("Accountability_score")
 
             ttest_rows = []
             for metric in metrics_to_test:
-                m_nokam, m_kam, m_diff, t_val, p_val = run_ttest(metric)
+                m_nokam, m_kam, m_diff, raw_t, raw_p = run_ttest(metric)
+                
+                # بررسی خطای ریاضی به دلیل یکسان بودن همه اعداد (واریانس صفر)
+                if math.isnan(raw_t) or math.isnan(raw_p):
+                    t_val_str = "N/A (Zero Variance)"
+                    p_val_str = "N/A"
+                    sig_str = "No 🔴"
+                else:
+                    t_val_str = round(raw_t, 3)
+                    p_val_str = round(raw_p, 4)
+                    sig_str = "Yes 🟢" if p_val_str < 0.05 else "No 🔴"
+
                 ttest_rows.append({
                     "Metric": metric.replace("_", " "),
                     "Mean (Nokam)": m_nokam,
                     "Mean (Kam)": m_kam,
                     "Mean Difference": m_diff,
-                    "t-Statistic": t_val,
-                    "p-Value": p_val,
-                    "Significance (p < 0.05)": "Yes 🟢" if p_val < 0.05 else "No 🔴",
+                    "t-Statistic": t_val_str,
+                    "p-Value": p_val_str,
+                    "Significance (p < 0.05)": sig_str,
                 })
 
             st.dataframe(pd.DataFrame(ttest_rows), use_container_width=True, hide_index=True)
