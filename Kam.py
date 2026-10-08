@@ -527,7 +527,7 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         plt.tight_layout()
         st.pyplot(fig)
 
-    # ------------------ Expander 3: Hypothesis Testing ------------------
+   # ------------------ Expander 3: Hypothesis Testing ------------------
     with st.expander("🧪 Mean Comparison Test (Independent Samples t-test)", expanded=False):
         nokam_grp = df_clean[df_clean["scenario_type"] == "Nokam"]
         kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
@@ -535,12 +535,31 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         if not nokam_grp.empty and not kam_grp.empty:
 
             def run_ttest(col_name):
+                # جداسازی داده‌های دو گروه و حذف مقادیر خالی
+                data_nokam = nokam_grp[col_name].dropna()
+                data_kam = kam_grp[col_name].dropna()
+                
+                # محاسبه میانگین‌ها
+                mean_nokam = data_nokam.mean() if not data_nokam.empty else 0
+                mean_kam = data_kam.mean() if not data_kam.empty else 0
+                
+                # محاسبه تفاوت میانگین (سناریوی Kam منهای سناریوی پایه Nokam)
+                mean_diff = mean_kam - mean_nokam
+
+                # انجام آزمون t (با فرض نابرابری واریانس‌ها)
                 t_stat, p_val = stats.ttest_ind(
-                    nokam_grp[col_name].dropna(),
-                    kam_grp[col_name].dropna(),
+                    data_nokam,
+                    data_kam,
                     equal_var=False,
                 )
-                return round(t_stat, 3), round(p_val, 4)
+                
+                return (
+                    round(mean_nokam, 2),
+                    round(mean_kam, 2),
+                    round(mean_diff, 2),
+                    round(t_stat, 3),
+                    round(p_val, 4)
+                )
 
             metrics_to_test = ["Revision_Score", "Believability_Score"]
             if "Accountability_Score" in df_clean.columns:
@@ -548,5 +567,17 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
 
             ttest_rows = []
             for metric in metrics_to_test:
-                t_val, p_val = run_ttest(metric)
-                
+                m_nokam, m_kam, m_diff, t_val, p_val = run_ttest(metric)
+                ttest_rows.append({
+                    "Metric": metric.replace("_", " "),
+                    "Mean (Nokam)": m_nokam,
+                    "Mean (Kam)": m_kam,
+                    "Mean Difference": m_diff,
+                    "t-Statistic": t_val,
+                    "p-Value": p_val,
+                    "Significance (p < 0.05)": "Yes 🟢" if p_val < 0.05 else "No 🔴",
+                })
+
+            st.dataframe(pd.DataFrame(ttest_rows), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Insufficient data in one or both scenarios to perform t-test.")
