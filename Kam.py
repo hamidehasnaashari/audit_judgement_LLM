@@ -527,7 +527,7 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
         plt.tight_layout()
         st.pyplot(fig)
 
-   # ------------------ Expander 3: Hypothesis Testing ------------------
+# ------------------ Expander 3: Hypothesis Testing ------------------
     with st.expander("🧪 Mean Comparison Test (Independent Samples t-test)", expanded=False):
         nokam_grp = df_clean[df_clean["scenario_type"] == "Nokam"]
         kam_grp = df_clean[df_clean["scenario_type"] == "Kam"]
