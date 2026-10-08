@@ -190,6 +190,60 @@ with tab2:
 scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
 
 # ----------------------------------------------------
+# 4. Experimental Scenarios (Tabs)
+# ----------------------------------------------------
+st.header("📝 1. Experimental Setup")
+
+tab1, tab2 = st.tabs(["📋 Base Scenario Context", "🔬 Treatment Scenarios"])
+
+with tab1:
+   base_scenario_text = st.text_area(
+      "Edit Base Scenario Context:",
+      value="""Your client, ABC Integrated Products, Ltd., is a publicly traded manufacturing company headquartered in Melbourne, Australia. 
+      ABC Integrated is profitable and has experienced stable financial growth over the past five years. Its financial indicators, including liquidity
+      and leverage, align with industry averages. Prior audits found no identifiable material weaknesses in the company’s internal controls.
+Under company guidelines, Overall financial statement materiality is set at $1,000,000 based on net income. During the audit, we agreed this materiality level was appropriate. All standard audit tests have been completed by competent members
+of your audit team, and you are satisfied with the results. Aside from the unresolved matter described on the following page, we are not considering
+any other financial statement adjustments. 
+The client believes the financial statements are fairly presented and insists on receiving an unqualified opinion as soon as possible. 
+Because of product innovation and revisions, the client identified manufacturing equipment that may be impaired at the end of the reporting period.
+Under IAS 36 Impairment of Assets, the client estimated the equipment's recoverable amount. The client applied IFRS 13 Fair Value Measurement to
+determine fair value. As relevant observable inputs—such as quoted prices in an active market for this or similar equipment—were unavailable, 
+the client used unobservable inputs, which are categorised as Level 3 inputs under the IFRS 13 fair value hierarchy. The Chief Financial Officer,
+David Vance, developed the unobservable inputs and valued the equipment using a discounted cash flow (DCF) model. The recorded value was at $3,450,000.
+The CFO formally concluded that no impairment was required.
+The audit team engaged the firm’s valuation specialists to assess the client’s estimate. The specialists provided the following advice:
+“We measure these assets based on discounted future cash flows, as there is no active market for these assets. Our estimated range for
+these assets is approximately $2,250,000 to $3,250,000. This range was developed using level 3 inputs under IFRS 13. you take a different
+view of the industry prospects from the audit clien”""",
+      height=180,
+  )
+
+with tab2:
+  col1, col2 = st.columns(2)
+  with col1:
+    nokam_text = st.text_area(
+        "Scenario 1: Nokam (No KAM Disclosure)",
+        value=(
+            "In the audit environment, An independent auditor’s report contains"
+            " only the auditor’s opinion and the basis for that opinion."
+        ),
+        height=120,
+    )
+  with col2:
+     kam_text = st.text_area(
+        "Scenario 2: Kam (KAM Disclosure Required)",
+        value=(
+            "Auditing Standard ISA 701, Communicating Key Audit Matters in the"
+            " Independent Auditor’s Report, requires auditors to disclose the"
+            " Key Audit Matters. requires auditors to disclose Key Audit Matters that in the auditor’s professional judgement,"
+            "were of most significance in the audit of the financial report of the current period."
+        ),
+        height=120,
+    )
+
+scenarios_dict = {"Nokam": nokam_text, "Kam": kam_text}
+
 # ----------------------------------------------------
 # 5. Data Source Selection (API Simulation vs File Upload)
 # ----------------------------------------------------
@@ -203,66 +257,70 @@ data_mode = st.radio(
 )
 
 if data_mode == "▶️ Run New Simulation (via API)":
-    c1, c2 = st.columns([1.5, 2.5])
-    with c1:
-        run_btn = st.button(
-            "🚀 Start API Simulation", type="primary", use_container_width=True
-        )
+  c1, c2 = st.columns([1.5, 2.5])
+  with c1:
+    run_btn = st.button(
+        "🚀 Start API Simulation", type="primary", use_container_width=True
+    )
 
-    if run_btn:
-        extra_headers = {}
+  if run_btn:
+    extra_headers = {}
 
-        # تخصیص کلاینت فعال بر اساس پلتفرم انتخابی
-        if platform == "Google AI Studio (Free)":
-            if not gemini_key:
-                st.error("Please configure 'GEMINI_API_KEY' in Secrets first!")
-                st.stop()
-            active_client = gemini_client
-        elif platform == "Groq (Free Tier)":
-            if not groq_key:
-                st.error("Please configure 'GROQ_API_KEY' in Secrets first!")
-                st.stop()
-            active_client = groq_client
-        else:
-            if not openrouter_key:
-                st.error("Please configure 'OPENROUTER_API_KEY' in Secrets first!")
-                st.stop()
-            active_client = openrouter_client
-            extra_headers = {
-                "HTTP-Referer": "https://streamlit.io",
-                "X-Title": "Audit Research App",
-            }
+    if platform == "OhhMyAgent (Local / Custom)":
+      if not ohh_key:
+        st.error("Please configure 'OHH_API_KEY' first!")
+        st.stop()
+      active_client = ohh_client
+    elif platform == "Google AI Studio (Free)":
+      if not gemini_key:
+        st.error("Please configure 'GEMINI_API_KEY' in Secrets first!")
+        st.stop()
+      active_client = gemini_client
+    elif platform == "Groq (Free Tier)":
+      if not groq_key:
+        st.error("Please configure 'GROQ_API_KEY' in Secrets first!")
+        st.stop()
+      active_client = groq_client
+    else:
+      if not openrouter_key:
+        st.error("Please configure 'OPENROUTER_API_KEY' in Secrets first!")
+        st.stop()
+      active_client = openrouter_client
+      extra_headers = {
+          "HTTP-Referer": "https://streamlit.io",
+          "X-Title": "Audit Research App",
+      }
 
-        try:
-            results = []
-            global_persona_id = 1
+    try:
+      results = []
+      global_persona_id = 1
 
-            positions = ["Senior auditor", "Manager"]
-            experiences = ["3 years", "7 years", "11 years", "15 years"]
-            genders = ["Male", "Female"]
+      positions = ["Senior auditor", "Manager"]
+      experiences = ["3 years", "7 years", "11 years", "15 years"]
+      genders = ["Male", "Female"]
 
-            total_tasks = num_personas * len(scenarios_dict)
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+      total_tasks = num_personas * len(scenarios_dict)
+      progress_bar = st.progress(0)
+      status_text = st.empty()
 
-            completed = 0
-            p_selected = positions[0]
+      completed = 0
+      p_selected = positions[0]
 
-            for i in range(num_personas):
-                exp_selected = random.choice(experiences)
-                gen_selected = random.choice(genders)
+      for i in range(num_personas):
+        exp_selected = random.choice(experiences)
+        gen_selected = random.choice(genders)
 
-                for sc_name, sc_content in scenarios_dict.items():
-                    persona_id = f"AP_{global_persona_id}"
-                    global_persona_id += 1
+        for sc_name, sc_content in scenarios_dict.items():
+          persona_id = f"AP_{global_persona_id}"
+          global_persona_id += 1
 
-                    system_prompt = (
-                        f"You are an auditor with a {p_selected} position. "
-                        f"Your experience is {exp_selected} and your gender is {gen_selected}. "
-                        f"Always respond strictly with numeric values as requested."
-                    )
+          system_prompt = (
+              f"You are an auditor with a {p_selected} position. Your"
+              f" experience is {exp_selected} and your gender is {gen_selected}."
+              " Always respond strictly with numeric values as requested."
+          )
 
-                    user_instruction = f"""
+          user_instruction = f"""
 Background Context: {base_scenario_text}
 Scenario: {sc_content}
 
@@ -274,135 +332,148 @@ Format your response ONLY as two numbers separated by a comma. Example: 6, 75
 Do not include explanations or extra text.
 """
 
-                    status_text.text(
-                        f"🔄 Processing {persona_id} | Scenario: {sc_name} ({platform})..."
-                    )
+          status_text.text(
+              f"🔄 Processing {persona_id} | Scenario: {sc_name} ({platform} -"
+              f" {model_name})..."
+          )
 
-                    rev_score, bel_score = None, None
-                    max_retries = 3
+          rev_score, bel_score = None, None
+          attempt_count = 0
 
-                    for attempt in range(max_retries):
-                        try:
-                            call_params = {
-                                "model": model_name,
-                                "messages": [
-                                    {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": user_instruction},
-                                ],
-                                "temperature": 0.2,
-                                "max_tokens": 100,
-                            }
-                            if extra_headers:
-                                call_params["extra_headers"] = extra_headers
+          # حلقه اجرای نامحدود تا زمان استخراج معتبر هر دو نمره عددی (حذف کامل مقادیر None)
+          while True:
+            attempt_count += 1
+            try:
+              call_params = {
+                  "model": model_name,
+                  "messages": [
+                      {"role": "system", "content": system_prompt},
+                      {"role": "user", "content": user_instruction},
+                  ],
+                  "temperature": 0.2,
+                  "max_tokens": 100,
+              }
+              if extra_headers:
+                call_params["extra_headers"] = extra_headers
 
-                            completion = active_client.chat.completions.create(**call_params)
+              completion = active_client.chat.completions.create(**call_params)
 
-                            # استخراج ایمن پیام و جلوگیری از خطای NoneType
-                            msg = completion.choices[0].message if completion.choices else None
-                            raw_content = getattr(msg, "content", None)
+              # استخراج محتوای پاسخ با پشتیبانی از فیلدهای تفکر و پیام معمولی
+              msg = (
+                  completion.choices[0].message
+                  if completion.choices
+                  else None
+              )
+              raw_content = getattr(msg, "content", None)
+              if not raw_content and hasattr(msg, "reasoning_content"):
+                raw_content = getattr(msg, "reasoning_content", None)
 
-                            # در صورت استفاده مدل از فیلد استدلال داخلی (Reasoning)
-                            if not raw_content and hasattr(msg, "reasoning_content"):
-                                raw_content = getattr(msg, "reasoning_content", None)
+              if raw_content:
+                response_text = str(raw_content).strip()
 
-                            if raw_content:
-                                response_text = str(raw_content).strip()
+                # حذف تگ‌های تفکر احتمالی مدل‌ها (<think>...</think>)
+                clean_text = re.sub(
+                    r"<think>.*?</think>", "", response_text, flags=re.DOTALL
+                ).strip()
+                numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
 
-                                # پاک‌سازی تگ‌های استدلال/تفکر
-                                clean_text = re.sub(
-                                    r"<think>.*?</think>", "", response_text, flags=re.DOTALL
-                                ).strip()
+                if len(numbers) >= 2:
+                  v1 = float(numbers[0])
+                  v2 = float(numbers[1])
 
-                                numbers = re.findall(r"\d+(?:\.\d+)?", clean_text)
+                  # اعتبارسنجی محدوده‌های استاندارد متغیرها
+                  if (1.0 <= v1 <= 10.0) and (0.0 <= v2 <= 100.0):
+                    rev_score = v1
+                    bel_score = v2
+                    break
 
-                                if len(numbers) >= 2:
-                                    rev_score = float(numbers[0])
-                                    bel_score = float(numbers[1])
-                                    break
-                                elif len(numbers) == 1:
-                                    rev_score = float(numbers[0])
-                                    break
-                            else:
-                                if attempt < max_retries - 1:
-                                    time.sleep(2)
-                                    continue
+              # در صورت نامعتبر بودن یا فرمت ناقص خروجی، تلاش مجدد
+              status_text.warning(
+                  f"⏳ Incomplete response on {persona_id} (Attempt"
+                  f" {attempt_count}). Retrying..."
+              )
+              time.sleep(1.2)
 
-                        except Exception as err:
-                            err_msg = str(err)
-                            if "429" in err_msg and attempt < max_retries - 1:
-                                status_text.warning(f"Rate limited on {persona_id}. Retrying in 4s...")
-                                time.sleep(4)
-                            else:
-                                st.warning(f"API notice on {persona_id}: {err_msg}")
-                                break
+            except Exception as err:
+              err_str = str(err)
+              if "429" in err_str:
+                status_text.warning(
+                    f"⚠️ Rate limited on {persona_id}. Retrying in 4s..."
+                )
+                time.sleep(4)
+              else:
+                status_text.warning(
+                    f"⚠️ Network/API retry on {persona_id}: {err_str[:60]}..."
+                )
+                time.sleep(2)
 
-                    # فاصله زمانی استاندارد بین درخواست‌ها
-                    time.sleep(0.5 if platform == "Google AI Studio (Free)" else 0.8)
+          # ایجاد فاصله کوتاه بین فراخوانی‌ها برای رعایت سقف درخواست
+          time.sleep(0.4)
 
-                    results.append({
-                        "scenario_type": sc_name,
-                        "ID": persona_id,
-                        "position": p_selected,
-                        "Experience": exp_selected,
-                        "gender": gen_selected,
-                        "Revision_Score": rev_score,
-                        "Believability_Score": bel_score,
-                    })
+          results.append({
+              "scenario_type": sc_name,
+              "ID": persona_id,
+              "position": p_selected,
+              "Experience": exp_selected,
+              "gender": gen_selected,
+              "Revision_Score": rev_score,
+              "Believability_Score": bel_score,
+          })
 
-                    completed += 1
-                    progress_bar.progress(completed / total_tasks)
+          completed += 1
+          progress_bar.progress(completed / total_tasks)
 
-            df_res = pd.DataFrame(results)
-            df_res.to_csv(csv_path, index=False)
-            st.session_state["df_data"] = df_res
+      df_res = pd.DataFrame(results)
+      df_res.to_csv(csv_path, index=False)
+      st.session_state["df_data"] = df_res
 
-            status_text.empty()
-            st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
-            st.rerun()
+      status_text.empty()
+      st.success(f"✅ Simulation completed! Generated {len(df_res)} records.")
+      st.rerun()
 
-        except Exception as e:
-            st.error(f"Execution Error: {e}")
+    except Exception as e:
+      st.error(f"Execution Error: {e}")
 
 else:
-    # ------------------ آپلود فایل نتایج قبلی (CSV یا اکسل) ------------------
-    uploaded_file = st.file_uploader(
-        "📥 Upload Previously Saved Simulation Dataset (CSV or Excel):",
-        type=["csv", "xlsx", "xls"],
-    )
+  # ------------------ آپلود دیتاست موجود (اکسل / CSV) ------------------
+  uploaded_file = st.file_uploader(
+      "📥 Upload Previously Saved Simulation Dataset (CSV or Excel):",
+      type=["csv", "xlsx", "xls"],
+  )
 
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                uploaded_df = pd.read_csv(uploaded_file)
-            else:
-                uploaded_df = pd.read_excel(uploaded_file)
+  if uploaded_file is not None:
+    try:
+      if uploaded_file.name.endswith(".csv"):
+        uploaded_df = pd.read_csv(uploaded_file)
+      else:
+        uploaded_df = pd.read_excel(uploaded_file)
 
-            st.session_state["df_data"] = uploaded_df
-            st.success(
-                f"✅ File loaded successfully! Loaded {len(uploaded_df)} records."
-            )
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
+      st.session_state["df_data"] = uploaded_df
+      st.success(
+          f"✅ File loaded successfully! Loaded {len(uploaded_df)} records."
+      )
+    except Exception as e:
+      st.error(f"Error reading file: {e}")
 
 # ----------------------------------------------------
-# دانلود داده‌ها و نمایش جدول خام (مشترک برای هر دو حالت)
+# دانلود داده‌ها و نمایش جدول نتایج
 # ----------------------------------------------------
 if "df_data" in st.session_state and not st.session_state["df_data"].empty:
-    col_dl, _ = st.columns([1.5, 3])
-    with col_dl:
-        csv_bytes = (
-            st.session_state["df_data"].to_csv(index=False).encode("utf-8")
-        )
-        st.download_button(
-            label="📥 Download Current Dataset CSV",
-            data=csv_bytes,
-            file_name=csv_path,
-            mime="text/csv",
-            use_container_width=True,
-        )
+  col_dl, _ = st.columns([1.5, 3])
+  with col_dl:
+    csv_bytes = st.session_state["df_data"].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download Current Dataset CSV",
+        data=csv_bytes,
+        file_name=csv_path,
+        mime="text/csv",
+        use_container_width=True,
+    )
 
-    with st.expander("🔍 View Raw Simulation Dataset", expanded=False):
-        st.dataframe(st.session_state["df_data"], use_container_width=True)
+  with st.expander("🔍 View Raw Simulation Dataset", expanded=False):
+    st.dataframe(st.session_state["df_data"], use_container_width=True)
+
+
 # ----------------------------------------------------
 # 6. Analysis Modules (Accordion / Expander UI)
 # ----------------------------------------------------
