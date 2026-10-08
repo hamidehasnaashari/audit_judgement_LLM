@@ -549,4 +549,4 @@ if "df_data" in st.session_state and not st.session_state["df_data"].empty:
             ttest_rows = []
             for metric in metrics_to_test:
                 t_val, p_val = run_ttest(metric)
-                ttest
+                
